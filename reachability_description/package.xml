@@ -17,7 +17,9 @@
   <depend>kdl_parser</depend>
   <depend>trac_ik_lib</depend>
   <depend>urdf</depend>
+  <depend>srdfdom</depend>
   <depend>pkg-config</depend>
+  <depend>robot_unit</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

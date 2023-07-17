@@ -9,6 +9,9 @@ set(DEPS
   ament_cmake
   rclcpp
   trac_ik_lib
+  urdf
+  srdfdom
+  robot_unit
 )
 
 foreach(dependency IN ITEMS ${DEPS})
@@ -33,9 +36,12 @@ install(TARGETS ${PROJECT_NAME} reachability_generation_node
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin
+  RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
+install(DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}/
+)
 
 ament_export_libraries(
     ${PROJECT_NAME}

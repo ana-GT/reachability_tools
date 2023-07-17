@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+
+<package format="2">
+  <name>robot_unit</name>
+  <version>1.0.0</version>
+  <description>
+    Unit of information (collision, FK and IK for a robot)    
+  </description>
+  <author>Ana C.H.Q.</author>
+  <maintainer email="ana@traclabs.com">Ana C.H.Q.</maintainer>
+  <license>BSD</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+
+  <depend>urdf</depend>
+  <depend>srdfdom</depend>
+  <depend>kdl_parser</depend>
+  <depend>geometric_shapes</depend>
+  <depend>visualization_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>octomap_msgs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_kdl</depend>
+  <depend>tf2_eigen</depend>
+  <depend>tf2_eigen_kdl</depend>
+    
+  <depend>libfcl-dev</depend>
+  
+</package>

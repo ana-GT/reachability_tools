@@ -8,12 +8,15 @@ int main(int argc, char* argv[])
   rclcpp::init(argc, argv);
   std::shared_ptr<rclcpp::Node> node = rclcpp::Node::make_shared("reachability_generation_node");
   
-  std::string chain_group = "arm";
-
   RCLCPP_INFO(node->get_logger(), "Create reachability generation node \n");
   reachability_description::ReachabilityDescription rd(node);
-  if(!rd.initialize(chain_group))
+  if(!rd.initialize())
     return 1;
+
+  // Generate 
+  RCLCPP_INFO(node->get_logger(), "Generate description start \n");
+  rd.generateDescription();
+  RCLCPP_INFO(node->get_logger(), "Generate description end \n");
 
   RCLCPP_INFO(node->get_logger(), "Spin! ");
   rclcpp::spin(node);
