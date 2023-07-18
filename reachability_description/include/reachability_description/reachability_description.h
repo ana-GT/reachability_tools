@@ -30,6 +30,8 @@ class ReachabilityDescription
     bool quickTest();
     bool generateDescription();
 
+    void reach_calc();
+
     protected:
     rclcpp::Node::SharedPtr nh_;
     std::shared_ptr<TRAC_IK::TRAC_IK> ik_solver_;

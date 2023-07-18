@@ -110,6 +110,77 @@ bool ReachabilityDescription::quickTest()
 }
 
 /**
+ *  
+ */
+void ReachabilityDescription::reach_calc()
+{
+    int sol = 0;
+    std::string base_link = "panda_link0";
+    std::string tip_link = "panda_hand_tcp";
+    double max_time = 0.001;
+    double eps = 1e-5;
+    TRAC_IK::SolveType ik_type = TRAC_IK::SolveType::Distance;
+
+    TRAC_IK::TRAC_IK ik_solver(nh_, base_link, tip_link, "robot_description", max_time, eps, ik_type);
+
+    double min_x, min_y, min_z;
+    double max_x, max_y, max_z;
+    double res;
+    
+    ReachData reach_default;
+    reach_default.state = ReachDataState::NO_FILLED;
+
+    min_x = -0.3; min_y = -0.3; min_z = -0.3;
+    max_x = 0.3; max_y = 0.3; max_z = 0.3;
+    res = 0.05;
+
+ sensor_msgs::msg::JointState js;
+ std::vector<std::string> jn = {"panda_joint1", "panda_joint2", "panda_joint3", "panda_joint4", "panda_joint5", "panda_joint6", "panda_joint7"};
+ js.name = jn;
+ std::vector<double> jv = {0, 0, 0, 0, 0, 0, 0};
+
+double x, y, z;
+  KDL::JntArray q_init, q_out; 
+  KDL::Frame p_in; 
+  KDL::Twist bounds = KDL::Twist::Zero();
+  q_init.data = Eigen::VectorXd::Zero(7);
+
+    ReachGraph reach_graph( min_x, min_y, min_z, max_x, max_y, max_z,
+  	                        res, reach_default ); 
+clock_t ts, tf; double dt;
+ts = clock();
+for(int xi = 0; xi < reach_graph.getNumX(); ++xi )
+ {
+    for(int yi = 0; yi < reach_graph.getNumY(); ++yi)
+    {
+        for(int zi = 0; zi < reach_graph.getNumZ(); ++zi)
+        {
+          reach_graph.vertexToWorld(xi, yi, zi, x, y, z);
+          p_in = makeKDLFrame(x, y, z, 0, 0, 0);  
+          if(ik_solver.CartToJnt(q_init, p_in, q_out, bounds) > 0)
+          {
+            for(int i = 0; i < jv.size(); ++i)
+                jv[i] = q_out(i);
+            js.position = jv;
+            sol++;
+            /*rco_->update(js);
+            if(!rco_->selfCollide())
+            {
+              reach_graph_->setState(xi, yi, zi, rd_filled);
+              found_sols++;
+            }
+            else
+              found_in_coll++;*/
+          }  
+        } // for zi
+    } // for yi
+ } // for xi 
+tf = clock();
+dt = (double)(tf-ts)/(double)CLOCKS_PER_SEC;
+RCLCPP_WARN(rclcpp::get_logger("neil"), "Done in thread! Sols: %u out of %u. Time: %f seconds", sol, reach_graph.getNumX()*reach_graph.getNumY()*reach_graph.getNumZ(), dt);
+}
+
+/**
  * @function generateDescription 
  */
 bool ReachabilityDescription::generateDescription()
@@ -139,6 +210,16 @@ RCLCPP_INFO(nh_->get_logger(), "generateDescription start...");
  std::vector<double> jv = {0, 0, 0, 0, 0, 0, 0};
  
 
+ std::thread to1_( &ReachabilityDescription::reach_calc, this );
+ std::thread to2_( &ReachabilityDescription::reach_calc, this );
+ std::thread to3_( &ReachabilityDescription::reach_calc, this );
+ std::thread to4_( &ReachabilityDescription::reach_calc, this );
+
+ to1_.join();
+ to2_.join();
+ to3_.join();
+to4_.join();
+
  clock_t ts, tf; double dt;
  ts = clock();
  for(int xi = 0; xi < reach_graph_->getNumX(); ++xi )
@@ -154,14 +235,14 @@ RCLCPP_INFO(nh_->get_logger(), "generateDescription start...");
             for(int i = 0; i < jv.size(); ++i)
                 jv[i] = q_out(i);
             js.position = jv;
-            rco_->update(js);
+            /*rco_->update(js);
             if(!rco_->selfCollide())
             {
               reach_graph_->setState(xi, yi, zi, rd_filled);
               found_sols++;
             }
             else
-              found_in_coll++;
+              found_in_coll++;*/
           }  
         } // for zi
     } // for yi
