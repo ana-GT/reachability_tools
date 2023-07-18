@@ -11,7 +11,7 @@ using namespace reachability_description;
 /**
  * @function Graph
  */
-ReachGraph::ReachGraph( double _min_x, double _min_y, double _min_z,
+ReachGraph::ReachGraph( const ChainInfo &_chain_info, double _min_x, double _min_y, double _min_z,
 	      double _max_x, double _max_y, double _max_z,
 	      double _resolution, 
 	      ReachData _default ) :
@@ -23,7 +23,8 @@ max_y_(_max_y),
 max_z_(_max_z),
 res_(_resolution)
 {
- 
+ chain_info_ = _chain_info;
+
   num_x_ = ( ( max_x_ - min_x_ ) / res_ );
   num_y_ = ( ( max_y_ - min_y_ ) / res_ );
   num_z_ = ( ( max_z_ - min_z_ ) / res_ );
@@ -142,20 +143,47 @@ sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( ReachDataState _state, int _r,
   ReachData *v;
   v = &points_[0];
   
+  int max_sols = 0;
+  int min_sols = 100000;
+
   // Get how many obstacle vertices there are in the graph
   int count = 0;
   for( int i = 0; i < num_points_; ++i ) {
     if( v->state == _state ) {
       count++;
+      if(v->num_sols > max_sols)
+        max_sols = v->num_sols;
+      if(v->num_sols < min_sols)
+        min_sols = v->num_sols;
     }
     v++;
   }
-  printf("Num V: %d \n", num_points_ );
-  printf("Num obst: %d \n", count );
 
-sensor_msgs::msg::PointCloud2 cloud;
+  // Get how many are higher than midi
+  int mid1, mid2;
+  mid1 = (int)(max_sols / 3);
+  mid2 = (int)(2*max_sols / 3);
 
-  cloud.header.frame_id = "world";
+  v = &points_[0];
+  
+  // Get how many obstacle vertices there are in the graph
+  count = 0;
+  for( int i = 0; i < num_points_; ++i ) {
+    if( v->state == _state ) {
+      if(v->num_sols >= mid2)
+        count++;
+    }
+    v++;
+  }
+
+
+
+
+  RCLCPP_WARN(rclcpp::get_logger("getPCD"), "NUmber of solutions range from %d to %d ", min_sols, max_sols);
+
+  sensor_msgs::msg::PointCloud2 cloud;
+
+  cloud.header.frame_id = chain_info_.root_link;
   cloud.width = count;
   cloud.height = 1;
   cloud.is_dense = false;
@@ -178,18 +206,32 @@ sensor_msgs::msg::PointCloud2 cloud;
   double x, y, z;
   v = &points_[0];
 
+  
   for( int i = 0; i < num_points_; ++i ) {
     if( v->state == _state ) {
+ 
+      if(v->num_sols >= mid2)
+      {
       indexToVertex( i, xi, yi, zi );
       vertexToWorld( xi, yi, zi, x, y, z );
       *out_x = x;
       *out_y = y;
       *out_z = z;
-
-      *out_r = _r; *out_g = _g; *out_b = _b; 
+      *out_r = 0; *out_g = 255; *out_b = 0; 
 
       ++out_x; ++out_y; ++out_z;
       ++out_r; ++out_g; ++out_b;
+
+
+      }
+/*
+      if(v->num_sols < mid1)
+      { *out_r = 255; *out_g = 0; *out_b = 0; }
+      else if(v->num_sols < mid2)
+      { *out_r = 255; *out_g = 255; *out_b = 0; } 
+      else
+    { *out_r = 0; *out_g = 255; *out_b = 0; }
+*/
     }
     v++;
   }

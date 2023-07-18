@@ -82,7 +82,8 @@ def generate_launch_description():
         parameters=[{
             "robot_description": robot_description_config.toxml(),
             "robot_description_semantic" : srdf_config,
-            "group": "panda_manipulator" 
+            "chain_group_name": "panda_manipulator",
+            "robot_name": "panda" 
         }]
         )    
 

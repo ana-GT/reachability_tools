@@ -10,8 +10,7 @@
 #include <iostream>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
-//#include <pcl/io/pcd_io.h>
-//#include <pcl/point_types.h>
+#include <robot_unit/robot_entity.h>
 
 namespace reachability_description
 {
@@ -28,6 +27,7 @@ struct  ReachData
   ReachDataState state;  
 
   double metric;
+  int num_sols;
 };
 
 /**
@@ -36,7 +36,7 @@ struct  ReachData
 class ReachGraph {
 
  public:
-  ReachGraph( double _min_x, double _min_y, double _min_z,
+  ReachGraph( const ChainInfo &_chain_info, double _min_x, double _min_y, double _min_z,
 	          double _max_x, double _max_y, double _max_z,
 	          double _resolution, 
 	          ReachData _default);
@@ -88,6 +88,9 @@ class ReachGraph {
   int num_x_; int num_y_; int num_z_; //< Num vertices at each direction
   int step_yz_;
   int step_z_;
+
+  // Chain info
+  ChainInfo chain_info_;
 };
 
 /**

@@ -15,6 +15,9 @@
 namespace reachability_description
 {
 
+#define DEFAULT_REF_FRAME "world"
+#define REACH_CLOUD_TOPIC "reach_data_test"
+
 /**
  * @class ReachabilityDescription
  */
@@ -24,27 +27,31 @@ class ReachabilityDescription
     ReachabilityDescription(const rclcpp::Node::SharedPtr &_nh);
     ~ReachabilityDescription();
 
-    bool initialize(const double &_max_ik_time = 0.001, 
+    bool initialize(const std::string &_robot_name,
+                    const double &_max_ik_time = 0.001, 
                     const double &_eps = 1e-5, 
                     const TRAC_IK::SolveType &_ik_type = TRAC_IK::SolveType::Distance);
-    bool quickTest();
+    bool quickTest(const std::string &_chain_group);
     bool generateDescription(const std::string &_chain_group);
 
     void reach_calc( const double &_min_x, const double &_min_y, const double &_min_z,
                      const double &_max_x, const double &_max_y, const double &_max_z,
-                     const std::string &_base_link, const std::string &_tip_link);
+                     const ChainInfo &_ci);
 
     protected:
     rclcpp::Node::SharedPtr nh_;
 
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_reach_;
 
-  std::shared_ptr<RobotEntity> re_;
-  std::shared_ptr<robot_unit::RobotCollisionObject> rco_;
+    std::shared_ptr<RobotEntity> re_;
+    std::shared_ptr<robot_unit::RobotCollisionObject> rco_;
 
-  std::shared_ptr<ReachGraph> reach_graph_;
-  std::string urdf_string_;
-  std::string srdf_string_;
+    std::shared_ptr<ReachGraph> reach_graph_;
+    std::string robot_name_;
+    std::string urdf_string_;
+    std::string srdf_string_;
+
+    std::mutex reach_fill_mutex_;
 };
 
 } // namespace reachability_description

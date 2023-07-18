@@ -5,6 +5,15 @@
  */
 #include <robot_unit/robot_entity.h>
 
+void ChainInfo::reset()
+{ 
+  group = ""; 
+  root_link = ""; 
+  tip_link = ""; 
+  joint_names.clear(); 
+}
+
+
 RobotEntity::RobotEntity()
 {
 
@@ -93,19 +102,47 @@ bool RobotEntity::getMimicInfo()
   return true;
 }
 
-bool RobotEntity::getChainInfo(const std::string &_chain_name, std::string &_base_link, std::string &_tip_link)
+bool isValidJointType(KDL::Joint::JointType joint_type)
+{
+ if(joint_type == KDL::Joint::JointType::RotAxis ||
+    joint_type == KDL::Joint::JointType::RotX ||
+    joint_type == KDL::Joint::JointType::RotY ||
+    joint_type == KDL::Joint::JointType::RotZ ||
+    joint_type == KDL::Joint::JointType::TransAxis ||
+    joint_type == KDL::Joint::JointType::TransX ||
+    joint_type == KDL::Joint::JointType::TransY ||
+    joint_type == KDL::Joint::JointType::TransZ )
+    return true;
+
+  return false;
+}
+
+bool RobotEntity::getChainInfo(const std::string &_chain_name, 
+                               ChainInfo &_chain_info)
 {
   std::vector<srdf::Model::Group> groups = srdf_model_->getGroups();
   bool found_chain = false;
+
   for(int i = 0; i < groups.size(); ++i)
   {
     if(groups[i].name_ == _chain_name)
     {
         if(groups[i].chains_.size() == 1)
         {
-         _base_link = groups[i].chains_[0].first;
-         _tip_link = groups[i].chains_[0].second;
-         RCLCPP_INFO(rclcpp::get_logger("RobotEntity"), "Using base %s and tip %s ", _base_link.c_str(), _tip_link.c_str());   
+         _chain_info.group = _chain_name;
+         _chain_info.root_link = groups[i].chains_[0].first;
+         _chain_info.tip_link = groups[i].chains_[0].second;
+
+         KDL::Chain chain;
+         tree_.getChain(_chain_info.root_link, _chain_info.tip_link, chain);
+         for(auto si : chain.segments)
+         {
+          if( isValidJointType(si.getJoint().getType()) )
+            _chain_info.joint_names.push_back(si.getJoint().getName());
+         }
+
+         _chain_info.num_joints = chain.getNrOfJoints(); // Should be equal to joint_names.size()
+
          found_chain = true;
          break;
         }

@@ -7,25 +7,29 @@ int main(int argc, char* argv[])
 {
   rclcpp::init(argc, argv);
   std::shared_ptr<rclcpp::Node> node = rclcpp::Node::make_shared("reachability_generation_node");
-  
-  RCLCPP_INFO(node->get_logger(), "Create reachability generation node \n");
+
+  // Read parameters
+  std::string chain_group;
+  std::string robot_name;
+  if(!node->has_parameter("chain_group_name"))
+    node->declare_parameter("chain_group_name", std::string(""));
+  node->get_parameter("chain_group_name", chain_group);
+
+  if(!node->has_parameter("robot_name"))
+    node->declare_parameter("robot_name", std::string(""));
+  node->get_parameter("robot_name", robot_name);
+
+
+  // Create main class and initialize  
   reachability_description::ReachabilityDescription rd(node);
-  if(!rd.initialize())
+  if(!rd.initialize(robot_name))
     return 1;
 
-  // Generate 
-  RCLCPP_INFO(node->get_logger(), "Generate description start \n");
-  rd.quickTest();
+  // Quick debug test
+  rd.quickTest(chain_group);
 
-
-  std::string chain_group;
-  if(!node->has_parameter("group"))
-    node->declare_parameter("group", std::string(""));
-  node->get_parameter("group", chain_group);
-
-
+  // Actually generate the description
   rd.generateDescription(chain_group);
-  RCLCPP_INFO(node->get_logger(), "Generate description end \n");
 
   RCLCPP_INFO(node->get_logger(), "Spin! ");
   rclcpp::spin(node);
