@@ -63,10 +63,20 @@ class ReachGraph {
   inline int getNumX();
   inline int getNumY();
   inline int getNumZ();
+  inline double getResolution() const;
   inline bool isValid( int _xi, int _yi, int _zi );
   inline ReachData getState( int _ind );
   inline ReachData getState( int _xi, int _yi, int _zi );
   void setState( int _xi, int _yi, int _zi, ReachData _rd );
+
+  inline double getMinX() const { return min_x_; }
+  inline double getMinY() const { return min_y_; }
+  inline double getMinZ() const { return min_z_; }
+
+  inline double getMaxX() const { return max_x_; }
+  inline double getMaxY() const { return max_y_; }
+  inline double getMaxZ() const { return max_z_; }
+
 
  private:
 
@@ -79,6 +89,14 @@ class ReachGraph {
   int step_yz_;
   int step_z_;
 };
+
+/**
+ * @function getNumV
+ */
+inline double ReachGraph::getResolution() const {
+  return res_;
+}
+
 
 /**
  * @function getNumV

@@ -28,13 +28,14 @@ class ReachabilityDescription
                     const double &_eps = 1e-5, 
                     const TRAC_IK::SolveType &_ik_type = TRAC_IK::SolveType::Distance);
     bool quickTest();
-    bool generateDescription();
+    bool generateDescription(const std::string &_chain_group);
 
-    void reach_calc();
+    void reach_calc( const double &_min_x, const double &_min_y, const double &_min_z,
+                     const double &_max_x, const double &_max_y, const double &_max_z,
+                     const std::string &_base_link, const std::string &_tip_link);
 
     protected:
     rclcpp::Node::SharedPtr nh_;
-    std::shared_ptr<TRAC_IK::TRAC_IK> ik_solver_;
 
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_reach_;
 
@@ -42,7 +43,8 @@ class ReachabilityDescription
   std::shared_ptr<robot_unit::RobotCollisionObject> rco_;
 
   std::shared_ptr<ReachGraph> reach_graph_;
-
+  std::string urdf_string_;
+  std::string srdf_string_;
 };
 
 } // namespace reachability_description

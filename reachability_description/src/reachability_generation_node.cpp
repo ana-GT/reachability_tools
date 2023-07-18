@@ -16,7 +16,15 @@ int main(int argc, char* argv[])
   // Generate 
   RCLCPP_INFO(node->get_logger(), "Generate description start \n");
   rd.quickTest();
-  rd.generateDescription();
+
+
+  std::string chain_group;
+  if(!node->has_parameter("group"))
+    node->declare_parameter("group", std::string(""));
+  node->get_parameter("group", chain_group);
+
+
+  rd.generateDescription(chain_group);
   RCLCPP_INFO(node->get_logger(), "Generate description end \n");
 
   RCLCPP_INFO(node->get_logger(), "Spin! ");

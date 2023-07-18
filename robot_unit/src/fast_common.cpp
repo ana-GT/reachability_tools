@@ -171,8 +171,8 @@ bool SimpleCollisionFunction(fcl::CollisionObjectd* o1,
       result.numContacts() >= request.num_max_contacts)
   {
     cdata->done = true;
-    printf("\t * Found collision with objects %s and %s. Result: %d \n",
-           cd1->id_.c_str(), cd2->id_.c_str(), result.isCollision());
+    //printf("\t * Found collision with objects %s and %s. Result: %d \n",
+    //       cd1->id_.c_str(), cd2->id_.c_str(), result.isCollision());
   }
 
   return cdata->done;
