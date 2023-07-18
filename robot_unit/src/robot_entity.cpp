@@ -93,6 +93,28 @@ bool RobotEntity::getMimicInfo()
   return true;
 }
 
+bool RobotEntity::getChainInfo(const std::string &_chain_name, std::string &_base_link, std::string &_tip_link)
+{
+  std::vector<srdf::Model::Group> groups = srdf_model_->getGroups();
+  bool found_chain = false;
+  for(int i = 0; i < groups.size(); ++i)
+  {
+    if(groups[i].name_ == _chain_name)
+    {
+        if(groups[i].chains_.size() == 1)
+        {
+         _base_link = groups[i].chains_[0].first;
+         _tip_link = groups[i].chains_[0].second;
+         RCLCPP_INFO(rclcpp::get_logger("RobotEntity"), "Using base %s and tip %s ", _base_link.c_str(), _tip_link.c_str());   
+         found_chain = true;
+         break;
+        }
+    }
+  }
+
+  return found_chain;
+}
+
 /**
  * @function getIndices
  */

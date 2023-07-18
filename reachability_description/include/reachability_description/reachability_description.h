@@ -8,6 +8,9 @@
 #include <srdfdom/model.h>
 
 #include <robot_unit/fast_robot_collision_object.h>
+#include <Eigen/Geometry>
+
+#include <reachability_description/reach_data.h>
 
 namespace reachability_description
 {
@@ -21,21 +24,22 @@ class ReachabilityDescription
     ReachabilityDescription(const rclcpp::Node::SharedPtr &_nh);
     ~ReachabilityDescription();
 
-    bool initialize(const double &_max_ik_time = 0.005, 
+    bool initialize(const double &_max_ik_time = 0.001, 
                     const double &_eps = 1e-5, 
                     const TRAC_IK::SolveType &_ik_type = TRAC_IK::SolveType::Distance);
-
+    bool quickTest();
     bool generateDescription();
 
     protected:
     rclcpp::Node::SharedPtr nh_;
     std::shared_ptr<TRAC_IK::TRAC_IK> ik_solver_;
 
-  std::shared_ptr<urdf::Model> urdf_;
-  std::shared_ptr<srdf::Model> srdf_model_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_reach_;
 
+  std::shared_ptr<RobotEntity> re_;
   std::shared_ptr<robot_unit::RobotCollisionObject> rco_;
 
+  std::shared_ptr<ReachGraph> reach_graph_;
 
 };
 

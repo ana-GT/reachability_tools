@@ -53,16 +53,16 @@ bool RobotCollisionObject::setJointState(const std::map<std::string, double> &_j
 
 bool RobotCollisionObject::init(const std::string &_ref_frame,
                                 const std::string &_robot_name,
-                                const std::string &_robot_description,
-                                const std::string &_robot_description_semantic, const double &_padding)
+                                const std::string &_urdf_string,
+                                const std::string &_srdf_string, const double &_padding)
 {
   init_(_ref_frame);
   robot_name_ = _robot_name;
-  robot_description_ = _robot_description;
-  robot_description_semantic_ = _robot_description_semantic;
+  robot_description_ = _urdf_string;
+  robot_description_semantic_ = _srdf_string;
   tf_prefix_ = robot_name_;
 
-  if (!re_.init(robot_description_, robot_description_semantic_))
+  if (!re_.init(_urdf_string, _srdf_string))
     return false;
 
   // Init Collision Matrix
@@ -85,7 +85,7 @@ bool RobotCollisionObject::init(const std::string &_ref_frame,
   // Init FLCObjects
   std::vector<std::pair<std::string, LinkCollInfo > > link_colls;
   link_colls = re_.getLinkCollisions();
-
+  
   for (int i = 0; i < link_colls.size(); ++i)
   {
     fcl::CollisionGeometryd* cg = urdfCollisionToFcl(link_colls[i].second.coll_,

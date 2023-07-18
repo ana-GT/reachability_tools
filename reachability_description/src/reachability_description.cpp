@@ -30,11 +30,8 @@ bool ReachabilityDescription::initialize(const double &_max_time,
                                          const double &_eps, 
                                          const TRAC_IK::SolveType &_ik_type)
 {
-      RCLCPP_INFO(nh_->get_logger(), "Initialize");
-
     std::string urdf_string, srdf_string, chain_group, base_link, tip_link;
 
-      RCLCPP_INFO(nh_->get_logger(), "Declaring...");
 
   if(!nh_->has_parameter("robot_description"))
     nh_->declare_parameter("robot_description", std::string(""));
@@ -45,58 +42,36 @@ bool ReachabilityDescription::initialize(const double &_max_time,
   if(!nh_->has_parameter("group"))
     nh_->declare_parameter("group", std::string(""));
 
-      RCLCPP_INFO(nh_->get_logger(), "Getting params...");
-
-
   nh_->get_parameter("robot_description", urdf_string);
   nh_->get_parameter("robot_description_semantic", srdf_string);
   nh_->get_parameter("group", chain_group);
 
-      RCLCPP_INFO(nh_->get_logger(), "Resetting urdf");
 
-  urdf_.reset(new urdf::Model());
+    re_.reset(new RobotEntity());
+    if(!re_->init(urdf_string, srdf_string))
+        return false;
 
-      RCLCPP_INFO(nh_->get_logger(), "Init urdf");
-
-  if(!urdf_->initString(urdf_string))
-    return false;
-
-      RCLCPP_INFO(nh_->get_logger(), "Resetting srdf");
-
-
-  srdf_model_.reset(new srdf::Model());
-  if(!srdf_model_->initString(*urdf_, srdf_string))
-    return false;
-
-  RCLCPP_INFO(nh_->get_logger(), "Got group %s ", chain_group.c_str());
-
-
-  std::vector<srdf::Model::Group> groups = srdf_model_->getGroups();
-  bool found_chain = false;
-  for(int i = 0; i < groups.size(); ++i)
-  {
-    if(groups[i].name_ == chain_group)
-    {
-        if(groups[i].chains_.size() == 1)
-        {
-         printf("Group %s has chains of size %lu \n", chain_group.c_str(), groups[i].chains_.size());
-         base_link = groups[i].chains_[0].first;
-         tip_link = groups[i].chains_[0].second;
-        RCLCPP_INFO(nh_->get_logger(), "Using base %s and tip %s ", base_link.c_str(), tip_link.c_str());   
-         found_chain = true;
-         break;
-        }
-    }
-  }
-
-  if(!found_chain)
-    return false;
+    re_->getChainInfo(chain_group, base_link, tip_link);
 
     ik_solver_.reset( new TRAC_IK::TRAC_IK(nh_, base_link, tip_link, "robot_description", _max_time, _eps, _ik_type));
 
     rco_.reset(new robot_unit::RobotCollisionObject());
     if(!rco_->init("world", "panda", urdf_string, srdf_string))
         return false;
+
+    // Init reach graph
+    double min_x, min_y, min_z, max_x, max_y, max_z; double res; 
+    ReachData reach_default;
+
+    min_x = -1.0; min_y = -1.0; min_z = -1.0;
+    max_x = 1.0; max_y = 1.0; max_z = 1.0;
+    res = 0.05;
+    reach_default.state = ReachDataState::NO_FILLED;
+
+    reach_graph_.reset( new ReachGraph( min_x, min_y, min_z, max_x, max_y, max_z,
+	      res, reach_default )); 
+
+    pub_reach_ = nh_->create_publisher<sensor_msgs::msg::PointCloud2>("reach_data_test", 10);
 
     return true;
 }
@@ -109,61 +84,100 @@ KDL::Frame makeKDLFrame(double x, double y, double z, double roll, double pitch,
     return pi;
 }
 
+bool ReachabilityDescription::quickTest()
+{
+    RCLCPP_WARN(nh_->get_logger(), "QUICK TEEEEEEEEEST" );
+
+    // Set rco_ to all zeros and check self-collision
+    sensor_msgs::msg::JointState js;
+    std::vector<std::string> jn = {"panda_joint1", "panda_joint2", "panda_joint3", "panda_joint4", "panda_joint5", "panda_joint6", "panda_joint7"};
+    std::vector<double> jv = {0, 0, 0, 0, 0, 0, 0};
+    js.name = jn;
+    js.position = jv;
+    rco_->update(js);
+    bool b = rco_->selfCollide();
+    RCLCPP_WARN(nh_->get_logger(), "Self collide for all zeros: %d !!!!!!!!!!!!!!!!!!!!", b );
+
+    std::vector<double> jv2 = {0, 0, 0, -1.57, 0, 1.57, 0};
+    js.name = jn;
+    js.position = jv2;
+    rco_->update(js);
+    b = rco_->selfCollide();
+    RCLCPP_WARN(nh_->get_logger(), "Self collide for good pose: %d !!!!!!!!!!!!!!!!!!!!", b );
+
+
+    return true;
+}
+
 /**
  * @function generateDescription 
  */
 bool ReachabilityDescription::generateDescription()
 {
- double x_min, x_max;
- x_min = 0.5; x_max = 0.7;
- double y_min, y_max;
- y_min = -0.5; y_max = 0.5;
- double z_min, z_max;
- z_min = 0.2; z_max = 1.0;
-
-  double d_linear = 0.05;
-
- int num_x, num_y, num_z;
-
- num_x = ceil((x_max - x_min)/d_linear);
- num_y = ceil((y_max - y_min)/d_linear); 
- num_z = ceil((z_max - z_min)/d_linear);
+RCLCPP_INFO(nh_->get_logger(), "generateDescription start..."); 
 
   KDL::JntArray q_init, q_out; 
   KDL::Frame p_in; 
   KDL::Twist bounds = KDL::Twist::Zero();
 
  int found_sols = 0;
- int trials = num_x*num_y*num_z;
-
+ int found_in_coll = 0;
   q_init.data = Eigen::VectorXd::Zero(7);
 
  double x, y, z;
+ ReachData rd_filled;
+ rd_filled.state = ReachDataState::FILLED;
+
+ ReachData rd_self_coll;
+ rd_self_coll.state = ReachDataState::COLLISION;
+
+
+ // Check for self-collision
+ sensor_msgs::msg::JointState js;
+ std::vector<std::string> jn = {"panda_joint1", "panda_joint2", "panda_joint3", "panda_joint4", "panda_joint5", "panda_joint6", "panda_joint7"};
+ js.name = jn;
+ std::vector<double> jv = {0, 0, 0, 0, 0, 0, 0};
+ 
+
  clock_t ts, tf; double dt;
  ts = clock();
- for(int xi = 0; xi < num_x; ++xi )
+ for(int xi = 0; xi < reach_graph_->getNumX(); ++xi )
  {
-    x = x_min + d_linear*xi;
-
-    for(int yi = 0; yi < num_y; ++yi)
+    for(int yi = 0; yi < reach_graph_->getNumY(); ++yi)
     {
-          y = y_min + d_linear*yi;
-
-        for(int zi = 0; zi < num_z; ++zi)
+        for(int zi = 0; zi < reach_graph_->getNumZ(); ++zi)
         {
-          z = z_min + d_linear*zi;
-
+          reach_graph_->vertexToWorld(xi, yi, zi, x, y, z);
           p_in = makeKDLFrame(x, y, z, 0, 0, 0);  
           if(ik_solver_->CartToJnt(q_init, p_in, q_out, bounds) > 0)
-            found_sols++;
-        }
-    }
- }
+          {
+            for(int i = 0; i < jv.size(); ++i)
+                jv[i] = q_out(i);
+            js.position = jv;
+            rco_->update(js);
+            if(!rco_->selfCollide())
+            {
+              reach_graph_->setState(xi, yi, zi, rd_filled);
+              found_sols++;
+            }
+            else
+              found_in_coll++;
+          }  
+        } // for zi
+    } // for yi
+ } // for xi
+
+sensor_msgs::msg::PointCloud2 msg;
  tf = clock();
  dt = (double)(tf-ts)/(double)CLOCKS_PER_SEC;
  
-RCLCPP_INFO(nh_->get_logger(), "Found %u solutions out of %u trials. Time: %f seconds ", found_sols, trials, dt);   
+RCLCPP_INFO(nh_->get_logger(), "Found %u solutions (with %u in self-collision) out of %u trials. Time: %f seconds ", 
+            found_sols, found_in_coll, reach_graph_->getNumPoints(), dt);   
  
+
+msg = reach_graph_->getPCD(ReachDataState::FILLED, 125, 0, 125);
+pub_reach_->publish(msg);
+
  return true;
 }
 

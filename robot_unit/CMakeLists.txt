@@ -43,13 +43,13 @@ add_library(${PROJECT_NAME} SHARED
   src/fast_robot_collision_object.cpp
   src/fast_allowed_collision_matrix.cpp
 )
-message(ERROR "FCL LIBRARIES: :::::: ${pkg_fcl_LIBRARIES}  library dirs: ${pkg_fcl_LIBRARY_DIRS} linked libs names: ${pkg_fcl_LINK_LIBRARIES} !!!!!!!!!!!!!!!!!!!!!!!")
-target_link_libraries(${PROJECT_NAME} treefksolverpos_recursive ${pkg_fcl_LINK_LIBRARIES})
+
+set(linked_fcl_libs /home/ana/local/lib/libfcl.so;/usr/lib/x86_64-linux-gnu/libccd.so;/usr/lib/x86_64-linux-gnu/libm.so;/opt/ros/galactic/lib/liboctomap.so;/opt/ros/galactic/lib/liboctomath.so)
+target_link_libraries(${PROJECT_NAME} treefksolverpos_recursive ${linked_fcl_libs})
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
   )
-#target_link_directories(${PROJECT_NAME} ${pkg_fcl_LIBRARY_DIRS})
 ament_target_dependencies( ${PROJECT_NAME} ${DEPS})
 
 ############# Tests ###############

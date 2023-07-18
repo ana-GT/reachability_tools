@@ -12,15 +12,21 @@ set(DEPS
   urdf
   srdfdom
   robot_unit
+  pcl_conversions
 )
 
 foreach(dependency IN ITEMS ${DEPS})
   find_package(${dependency} REQUIRED)
 endforeach()
 
-include_directories(include)
+include_directories(
+  include
+  ${PCL_INCLUDE_DIRS}  
+)
 
-add_library(${PROJECT_NAME} SHARED src/reachability_description.cpp)
+set(linked_fcl_libs /home/ana/local/lib/libfcl.so;/usr/lib/x86_64-linux-gnu/libccd.so;/usr/lib/x86_64-linux-gnu/libm.so;/opt/ros/galactic/lib/liboctomap.so;/opt/ros/galactic/lib/liboctomath.so)
+add_library(${PROJECT_NAME} SHARED src/reachability_description.cpp src/reach_data.cpp)
+target_link_libraries(${PROJECT_NAME} ${linked_fcl_libs})
 ament_target_dependencies( ${PROJECT_NAME} ${DEPS})
 
 add_executable(reachability_generation_node src/reachability_generation_node.cpp)
@@ -46,8 +52,9 @@ install(DIRECTORY launch
 ament_export_libraries(
     ${PROJECT_NAME}
 )
+
 #ament_export_targets(
-#  export_${PROJECT_NAME}
+#  reachability_generation_node
 #)
 
 ament_export_dependencies(

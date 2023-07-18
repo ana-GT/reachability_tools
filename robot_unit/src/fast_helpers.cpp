@@ -48,7 +48,6 @@ fcl::CollisionGeometryd* urdfCollisionToFcl(const urdf::CollisionSharedPtr &_col
   shape->scale(_scale);
   shape->padd(_padding);
 
-
   switch (shape->type)
   {
   case shapes::CYLINDER:
@@ -99,7 +98,7 @@ shapes::Shape* constructShape(const urdf::Geometry *geom)
 
   shapes::Shape *result = NULL;
 
-  if(!geom);
+  if(!geom)
     return result;
 
   switch (geom->type)

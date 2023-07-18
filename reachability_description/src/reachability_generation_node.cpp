@@ -15,6 +15,7 @@ int main(int argc, char* argv[])
 
   // Generate 
   RCLCPP_INFO(node->get_logger(), "Generate description start \n");
+  rd.quickTest();
   rd.generateDescription();
   RCLCPP_INFO(node->get_logger(), "Generate description end \n");
 

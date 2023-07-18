@@ -56,6 +56,9 @@ public:
   std::vector<std::pair<std::string, std::string>>  getSrdfDisabledCollPairs();
   bool getCollisionMarkers(const std::string &_link, 
                            visualization_msgs::msg::MarkerArray &_markers);
+  bool getChainInfo(const std::string &_chain_name, 
+                    std::string &_base_link, 
+                    std::string &_tip_link);
 
 protected:
 
