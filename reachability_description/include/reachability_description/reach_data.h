@@ -11,6 +11,7 @@
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 #include <robot_unit/robot_entity.h>
+#include <Eigen/Geometry>
 
 namespace reachability_description
 {
@@ -56,6 +57,12 @@ class ReachGraph {
 		  double _lx, double _ly, double _lz,
 		  int _type = OBSTACLE );
 */
+  void createSphereSamplesVoxel(const int &_xi, 
+                                const int &_yi, 
+                                const int &zi,
+                                std::vector<Eigen::Isometry3d> &_frames, 
+                                const int _n = 32);
+
   sensor_msgs::msg::PointCloud2 getPCD( ReachDataState _state, int _r, int _g, int _b );
 
   inline int ref( int _xi, int _yi, int _zi );

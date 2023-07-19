@@ -8,6 +8,17 @@
 
 using namespace reachability_description;
 
+double modulo(const double &_val, const double &_factor)
+{
+  double new_val = _val;
+
+  while(new_val > _factor)
+    new_val = new_val - _factor;
+  
+  return new_val; 
+}
+
+
 /**
  * @function Graph
  */
@@ -135,9 +146,6 @@ void ReachGraph::setState( int _xi, int _yi, int _zi, ReachData _rd )
 /**
  * @function getPCD
  */
-//pcl::PointCloud<pcl::PointXYZ>::Ptr ReachGraph::getPCD( ReachDataState _state ) {
-//pcl::PointCloud<pcl::PointXYZ>::Ptr cloud( new pcl::PointCloud<pcl::PointXYZ> );
-
 sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( ReachDataState _state, int _r, int _g, int _b )
 {
   ReachData *v;
@@ -159,26 +167,6 @@ sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( ReachDataState _state, int _r,
     v++;
   }
 
-  // Get how many are higher than midi
-  int mid1, mid2;
-  mid1 = (int)(max_sols / 3);
-  mid2 = (int)(2*max_sols / 3);
-
-  v = &points_[0];
-  
-  // Get how many obstacle vertices there are in the graph
-  count = 0;
-  for( int i = 0; i < num_points_; ++i ) {
-    if( v->state == _state ) {
-      if(v->num_sols >= mid2)
-        count++;
-    }
-    v++;
-  }
-
-
-
-
   RCLCPP_WARN(rclcpp::get_logger("getPCD"), "NUmber of solutions range from %d to %d ", min_sols, max_sols);
 
   sensor_msgs::msg::PointCloud2 cloud;
@@ -188,7 +176,6 @@ sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( ReachDataState _state, int _r,
   cloud.height = 1;
   cloud.is_dense = false;
  
-  //cloud->points.resize( cloud->width*cloud->height );
   sensor_msgs::PointCloud2Modifier modifier(cloud);
   modifier.setPointCloud2FieldsByString(2, "xyz", "rgb");
   modifier.resize(count);
@@ -206,35 +193,60 @@ sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( ReachDataState _state, int _r,
   double x, y, z;
   v = &points_[0];
 
-  
   for( int i = 0; i < num_points_; ++i ) {
     if( v->state == _state ) {
  
-      if(v->num_sols >= mid2)
-      {
       indexToVertex( i, xi, yi, zi );
       vertexToWorld( xi, yi, zi, x, y, z );
+
+      double ratio = (double) v->num_sols / (double) max_sols;
       *out_x = x;
       *out_y = y;
       *out_z = z;
-      *out_r = 0; *out_g = 255; *out_b = 0; 
+      *out_r = (int)( 255.0*( modulo( 2*(1-ratio), 1.0) )); 
+      *out_g = (int)( 255*( modulo( 2*ratio, 1.0) )); 
+      *out_b = 0; 
 
       ++out_x; ++out_y; ++out_z;
       ++out_r; ++out_g; ++out_b;
-
-
-      }
-/*
-      if(v->num_sols < mid1)
-      { *out_r = 255; *out_g = 0; *out_b = 0; }
-      else if(v->num_sols < mid2)
-      { *out_r = 255; *out_g = 255; *out_b = 0; } 
-      else
-    { *out_r = 0; *out_g = 255; *out_b = 0; }
-*/
     }
     v++;
   }
  
   return cloud;
+}
+
+/**
+ * @brief createSphereSamplesVoxel
+ */
+void ReachGraph::createSphereSamplesVoxel(const int &_xi, 
+                                const int &_yi, 
+                                const int &zi,
+                                std::vector<Eigen::Isometry3d> &_frames, 
+                                const int _n)
+{
+  double theta_k, phi_k, h_k;
+  double r= res_/2.0;
+  double x, y, z;
+
+  for(int k = 1; k <= _n; ++k)
+  {
+   h_k = -1 + 2*(k-1)/(_n-1);
+   theta_k = acos(h_k);
+
+   if(k == 1 || k == _n)
+    phi_k = 0;
+   else
+    phi_k = modulo(phi_k + 3.6/sqrt(_n) *1/sqrt(1 -h_k*h_k), (2*M_PI));
+  
+   x = r*sin(theta_k)*cos(phi_k);
+   y = r*sin(theta_k)*sin(phi_k);
+   z = r*cos(theta_k);
+
+   Eigen::Isometry3d p; p.setIdentity();
+   p.translation() = Eigen::Vector3d(x,y,z);
+   
+   _frames.push_back(p);
+  }
+
 }

@@ -220,8 +220,8 @@ bool ReachabilityDescription::generateDescription(const std::string &_chain_grou
   double xmin, ymin, zmin, xmax, ymax, zmax, xmid, ymid, zmid;
   double res; ReachData reach_default;
 
-    xmin = -1.0; ymin = -1.0; zmin = -1.0;
-    xmax = 1.0; ymax = 1.0; zmax = 1.0;
+    xmin = -1.0; ymin = -1.0; zmin = 0.0;
+    xmax = 1.0; ymax = 1.0; zmax = 2.0;
     res = 0.05;
     reach_default.state = ReachDataState::NO_FILLED;
 
