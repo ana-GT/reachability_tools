@@ -36,7 +36,7 @@ class ReachabilityDescription
 
     void reach_calc( const double &_min_x, const double &_min_y, const double &_min_z,
                      const double &_max_x, const double &_max_y, const double &_max_z,
-                     const ChainInfo &_ci);
+                     const reachability_msgs::msg::ChainInfo &_ci);
 
     protected:
     rclcpp::Node::SharedPtr nh_;

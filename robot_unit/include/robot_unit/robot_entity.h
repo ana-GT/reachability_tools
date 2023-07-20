@@ -8,6 +8,8 @@
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 
+#include <reachability_msgs/msg/chain_info.hpp>
+
 /**
  * @struct JointMimicInfo
  */
@@ -27,17 +29,6 @@ struct LinkCollInfo
 {
   urdf::CollisionSharedPtr coll_;
   int local_shape_index_; // Index w.r.t. its parent link
-};
-
-struct ChainInfo
-{
-  std::string group;
-  std::string root_link;
-  std::string tip_link;
-  std::vector<std::string> joint_names;
-  unsigned int num_joints;
-
-  void reset();
 };
 
 /**
@@ -67,7 +58,7 @@ public:
   bool getCollisionMarkers(const std::string &_link, 
                            visualization_msgs::msg::MarkerArray &_markers);
   bool getChainInfo(const std::string &_chain_name, 
-                    ChainInfo &_chain_info);
+                    reachability_msgs::msg::ChainInfo &_chain_info);
 
 protected:
 

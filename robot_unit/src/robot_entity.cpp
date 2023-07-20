@@ -5,20 +5,17 @@
  */
 #include <robot_unit/robot_entity.h>
 
-void ChainInfo::reset()
-{ 
-  group = ""; 
-  root_link = ""; 
-  tip_link = ""; 
-  joint_names.clear(); 
-}
-
-
+/**
+ * @brief Constructor 
+ */
 RobotEntity::RobotEntity()
 {
 
 }
 
+/**
+ * @brief Destructor 
+ */
 RobotEntity::~RobotEntity()
 {
 }
@@ -118,7 +115,7 @@ bool isValidJointType(KDL::Joint::JointType joint_type)
 }
 
 bool RobotEntity::getChainInfo(const std::string &_chain_name, 
-                               ChainInfo &_chain_info)
+                               reachability_msgs::msg::ChainInfo &_chain_info)
 {
   std::vector<srdf::Model::Group> groups = srdf_model_->getGroups();
   bool found_chain = false;

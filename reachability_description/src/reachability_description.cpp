@@ -1,4 +1,5 @@
 #include <reachability_description/reachability_description.h>
+#include <tf2_eigen_kdl/tf2_eigen_kdl.hpp>
 
 namespace reachability_description
 {
@@ -94,7 +95,7 @@ bool ReachabilityDescription::quickTest(const std::string &_chain_group)
 
     // Set rco_ to all zeros and check self-collision
     sensor_msgs::msg::JointState js;
-    ChainInfo chain_info;
+    reachability_msgs::msg::ChainInfo chain_info;
     re_->getChainInfo(_chain_group, chain_info);
     js.name = chain_info.joint_names;
 
@@ -122,25 +123,24 @@ bool ReachabilityDescription::quickTest(const std::string &_chain_group)
  */
 void ReachabilityDescription::reach_calc( const double &_min_x, const double &_min_y, const double &_min_z,
                                           const double &_max_x, const double &_max_y, const double &_max_z,
-                                          const ChainInfo &_ci)
+                                          const reachability_msgs::msg::ChainInfo &_ci)
 {
-    int found_sols = 0;
-    int found_in_coll = 0;
+  int found_sols = 0;
 
-    double max_time = 0.001;
-    double eps = 1e-5;
-    TRAC_IK::SolveType ik_type = TRAC_IK::SolveType::Distance;
+  double max_time = 0.001;
+  double eps = 1e-5;
+  TRAC_IK::SolveType ik_type = TRAC_IK::SolveType::Distance;
 
-    TRAC_IK::TRAC_IK ik_solver(nh_, _ci.root_link, _ci.tip_link, 
+  TRAC_IK::TRAC_IK ik_solver(nh_, _ci.root_link, _ci.tip_link, 
                               "robot_description", 
                               max_time, eps, ik_type);
 
-    ReachData reach_default;
-    reach_default.state = ReachDataState::NO_FILLED;
+  reachability_msgs::msg::ReachData reach_default;
+  reach_default.state = reachability_msgs::msg::ReachData::NO_FILLED;
 
- sensor_msgs::msg::JointState js;
- js.name = _ci.joint_names;
- js.position.resize(_ci.num_joints);
+  sensor_msgs::msg::JointState js;
+  js.name = _ci.joint_names;
+  js.position.resize(_ci.num_joints);
 
   double x, y, z;
   KDL::JntArray q_init, q_out; 
@@ -148,52 +148,64 @@ void ReachabilityDescription::reach_calc( const double &_min_x, const double &_m
   KDL::Twist bounds = KDL::Twist::Zero();
   q_init.data = Eigen::VectorXd::Zero(_ci.num_joints);
 
-    ReachGraph reach_graph( _ci, _min_x, _min_y, _min_z, _max_x, _max_y, _max_z,
-  	                        reach_graph_->getResolution(), reach_default ); 
+  ReachGraph reach_graph( _ci, _min_x, _min_y, _min_z, _max_x, _max_y, _max_z,
+  	                                             reach_graph_->getResolution(), 
+                                                 reach_graph_->getNumVoxelSamples(),
+                                                 reach_default ); 
 
-    robot_unit::RobotCollisionObject rco;
-    if(!rco.init(DEFAULT_REF_FRAME, robot_name_, urdf_string_, srdf_string_))
-        return;
+  robot_unit::RobotCollisionObject rco;
+  if(!rco.init(DEFAULT_REF_FRAME, robot_name_, urdf_string_, srdf_string_))
+    return;
 
-    ReachData rd_filled;
-    rd_filled.state = ReachDataState::FILLED;
 
-for(int xi = 0; xi < reach_graph.getNumX(); ++xi )
- {
+  for(int xi = 0; xi < reach_graph.getNumX(); ++xi )
+  {
     for(int yi = 0; yi < reach_graph.getNumY(); ++yi)
     {
-        for(int zi = 0; zi < reach_graph.getNumZ(); ++zi)
+      for(int zi = 0; zi < reach_graph.getNumZ(); ++zi)
+      {
+        reach_graph.vertexToWorld(xi, yi, zi, x, y, z);
+
+        // Create samples
+        reachability_msgs::msg::ReachData rdata;
+
+        std::vector<Eigen::Isometry3d> frames; 
+        reach_graph.createSphereSamplesVoxel(xi, yi, zi, frames);
+
+        for(auto frame_i : frames)
         {
-          reach_graph.vertexToWorld(xi, yi, zi, x, y, z);
+          tf2::transformEigenToKDL(frame_i, p_in);
 
-          // Create samples
-          std::vector<Eigen::Isometry3d> frames; 
-          int n = 32;
-          reach_graph.createSphereSamplesVoxel(xi, yi, zi, frames, n);
-
-          for(int idx = 0; idx < n; ++idx)
+          if(ik_solver.CartToJnt(q_init, p_in, q_out, bounds) > 0)
           {
-            tf2::transformEigenToKDL(frames[idx], p_in);
-
-            if(ik_solver.CartToJnt(q_init, p_in, q_out, bounds) > 0)
+            js.position = jntArrayToVector(q_out);
+            rco.update(js);
+            if(!rco.selfCollide())
             {
-              js.position = jntArrayToVector(q_out);
-              rco.update(js);
-              if(!rco.selfCollide())
-              {
-                std::vector<KDL::JntArray> sols;
-                ik_solver.getSolutions(sols);
-                rd_filled.num_sols = sols.size();
-                reach_graph.setState(xi, yi, zi, rd_filled);
-                found_sols++;
-              }
-              else
-                found_in_coll++;
-            }  // end if  
+              std::vector<KDL::JntArray> sols;
+              ik_solver.getSolutions(sols);
 
-          } // end for idx
-  
-        } // for zi
+              reachability_msgs::msg::ReachSample sample_i;
+              sample_i.pose = tf2::toMsg(frame_i);
+              sample_i.best_config = js.position;
+              sample_i.num_configs = sols.size();
+
+              rdata.samples.push_back(sample_i);
+
+            } // end selfCollide
+          }  // end if  ik_solver
+
+        } // end frames_i
+
+        // Set status 
+        rdata.state = rdata.samples.empty() ? reachability_msgs::msg::ReachData::NO_FILLED : reachability_msgs::msg::ReachData::FILLED;
+        // Store
+        reach_graph.setState(xi, yi, zi, rdata);
+
+        if(rdata.state == reachability_msgs::msg::ReachData::FILLED)
+          found_sols++;
+
+      } // for zi
     } // for yi
  } // for xi 
 
@@ -205,7 +217,7 @@ for(int i = 0; i < reach_graph.getNumPoints(); ++i)
   double x, y, z;
 
   reach_graph.indexToVertex(i, xli, yli, zli);
-  ReachData data = reach_graph.getState(i);
+  reachability_msgs::msg::ReachData data = reach_graph.getState(i);
 
   // Transform index to double then back to index of main reach
   reach_graph.vertexToWorld(xli, yli, zli, x, y, z);
@@ -215,44 +227,33 @@ for(int i = 0; i < reach_graph.getNumPoints(); ++i)
 }
 reach_fill_mutex_.unlock();
 
-RCLCPP_WARN(rclcpp::get_logger("reach"), "Done in thread! Sols: %u/%u (found in coll: %u). xyz min: (%.3f, %.3f, %.3f) xyz max: (%.3f, %.3f, %.3f)", 
+RCLCPP_WARN(rclcpp::get_logger("reach"), "Done in thread! Sols: %u/%u . xyz min: (%.3f, %.3f, %.3f) xyz max: (%.3f, %.3f, %.3f)", 
             found_sols, reach_graph.getNumPoints(), 
-            found_in_coll,_min_x, _min_y, _min_z, _max_x, _max_y, _max_z);
+            _min_x, _min_y, _min_z, _max_x, _max_y, _max_z);
 }
 
-/*
-    sensor_msgs::msg::PointCloud2 sam; sam = reach_graph_->debugSamples(10,10,10);
-      rclcpp::Rate loop_rate(1);
-    for(int i = 0; i < 5; ++i)
-    {
-      pub_reach_->publish(sam);
-      rclcpp::spin_some(nh_);
-      loop_rate.sleep();
-    }
-    RCLCPP_WARN(rclcpp::get_logger("reach"), "Published");
-
-     return true;
-*/
 
 /**
  * @function generateDescription 
  */
 bool ReachabilityDescription::generateDescription(const std::string &_chain_group)
 {
-  ChainInfo chain_info;
+  reachability_msgs::msg::ChainInfo chain_info;
   re_->getChainInfo(_chain_group, chain_info);
 
   // Init reach graph
   double xmin, ymin, zmin, xmax, ymax, zmax, xmid, ymid, zmid;
-  double res; ReachData reach_default;
+  double res; 
+  reachability_msgs::msg::ReachData reach_default;
 
-    xmin = -1.0; ymin = -1.0; zmin = 0.0;
-    xmax = 1.0; ymax = 1.0; zmax = 2.0;
-    res = 0.05;
-    reach_default.state = ReachDataState::NO_FILLED;
+    xmin = -1.0; ymin = -1.2; zmin = 0.0;
+    xmax = 1.5; ymax = 1.2; zmax = 2.0;
+    res = 0.10;
+    int num_voxel_samples = 32;
+    reach_default.state = reachability_msgs::msg::ReachData::NO_FILLED;
 
     reach_graph_.reset( new ReachGraph( chain_info, xmin, ymin, zmin, xmax, ymax, zmax,
-	      res, reach_default )); 
+	      res, num_voxel_samples, reach_default )); 
 
 xmid = (xmin + xmax)*0.5;
 ymid = (ymin + ymax)*0.5;
@@ -284,7 +285,7 @@ std::chrono::duration<double> dt = (tf - ts);
 RCLCPP_INFO(nh_->get_logger(), "Joint Time: %f seconds ", dt.count());   
 
 sensor_msgs::msg::PointCloud2 msg;
-msg = reach_graph_->getPCD(ReachDataState::FILLED, 125, 0, 125);
+msg = reach_graph_->getPCD( reachability_msgs::msg::ReachData::FILLED, 125, 0, 125);
 pub_reach_->publish(msg);
 
  return true;

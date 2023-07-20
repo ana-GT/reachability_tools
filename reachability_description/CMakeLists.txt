@@ -13,6 +13,9 @@ set(DEPS
   srdfdom
   robot_unit
   pcl_conversions
+  tf2_eigen
+  tf2_eigen_kdl
+  reachability_msgs
 )
 
 foreach(dependency IN ITEMS ${DEPS})

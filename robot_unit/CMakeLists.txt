@@ -17,6 +17,7 @@ set(DEPS
     tf2_eigen
     tf2_kdl
     tf2_eigen_kdl
+    reachability_msgs
 )
 
 foreach(dependency IN ITEMS ${DEPS})

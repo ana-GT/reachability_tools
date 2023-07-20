@@ -26,6 +26,7 @@
   <depend>tf2_kdl</depend>
   <depend>tf2_eigen</depend>
   <depend>tf2_eigen_kdl</depend>
+  <depend>reachability_msgs</depend>
     
   <depend>libfcl-dev</depend>
   
