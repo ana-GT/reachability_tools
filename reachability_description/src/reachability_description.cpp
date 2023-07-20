@@ -165,22 +165,34 @@ for(int xi = 0; xi < reach_graph.getNumX(); ++xi )
         for(int zi = 0; zi < reach_graph.getNumZ(); ++zi)
         {
           reach_graph.vertexToWorld(xi, yi, zi, x, y, z);
-          p_in = makeKDLFrame(x, y, z, 0, 0, 0);  
-          if(ik_solver.CartToJnt(q_init, p_in, q_out, bounds) > 0)
+
+          // Create samples
+          std::vector<Eigen::Isometry3d> frames; 
+          int n = 32;
+          reach_graph.createSphereSamplesVoxel(xi, yi, zi, frames, n);
+
+          for(int idx = 0; idx < n; ++idx)
           {
-            js.position = jntArrayToVector(q_out);
-            rco.update(js);
-            if(!rco.selfCollide())
+            tf2::transformEigenToKDL(frames[idx], p_in);
+
+            if(ik_solver.CartToJnt(q_init, p_in, q_out, bounds) > 0)
             {
-              std::vector<KDL::JntArray> sols;
-              ik_solver.getSolutions(sols);
-              rd_filled.num_sols = sols.size();
-              reach_graph.setState(xi, yi, zi, rd_filled);
-              found_sols++;
-            }
-            else
-              found_in_coll++;
-          }  
+              js.position = jntArrayToVector(q_out);
+              rco.update(js);
+              if(!rco.selfCollide())
+              {
+                std::vector<KDL::JntArray> sols;
+                ik_solver.getSolutions(sols);
+                rd_filled.num_sols = sols.size();
+                reach_graph.setState(xi, yi, zi, rd_filled);
+                found_sols++;
+              }
+              else
+                found_in_coll++;
+            }  // end if  
+
+          } // end for idx
+  
         } // for zi
     } // for yi
  } // for xi 
@@ -207,6 +219,20 @@ RCLCPP_WARN(rclcpp::get_logger("reach"), "Done in thread! Sols: %u/%u (found in 
             found_sols, reach_graph.getNumPoints(), 
             found_in_coll,_min_x, _min_y, _min_z, _max_x, _max_y, _max_z);
 }
+
+/*
+    sensor_msgs::msg::PointCloud2 sam; sam = reach_graph_->debugSamples(10,10,10);
+      rclcpp::Rate loop_rate(1);
+    for(int i = 0; i < 5; ++i)
+    {
+      pub_reach_->publish(sam);
+      rclcpp::spin_some(nh_);
+      loop_rate.sleep();
+    }
+    RCLCPP_WARN(rclcpp::get_logger("reach"), "Published");
+
+     return true;
+*/
 
 /**
  * @function generateDescription 

@@ -217,36 +217,99 @@ sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( ReachDataState _state, int _r,
 }
 
 /**
+ * @function getPCD
+ */
+sensor_msgs::msg::PointCloud2 ReachGraph::debugSamples(int _xi, int _yi, int _zi)
+{
+  int N = 64;
+  sensor_msgs::msg::PointCloud2 cloud;
+
+  cloud.header.frame_id = chain_info_.root_link;
+  cloud.width = N;
+  cloud.height = 1;
+  cloud.is_dense = false;
+ 
+  sensor_msgs::PointCloud2Modifier modifier(cloud);
+  modifier.setPointCloud2FieldsByString(2, "xyz", "rgb");
+  modifier.resize(N);
+
+  // iterators
+  sensor_msgs::PointCloud2Iterator<float> out_x(cloud, "x");
+  sensor_msgs::PointCloud2Iterator<float> out_y(cloud, "y");
+  sensor_msgs::PointCloud2Iterator<float> out_z(cloud, "z");
+  sensor_msgs::PointCloud2Iterator<uint8_t> out_r(cloud, "r");
+  sensor_msgs::PointCloud2Iterator<uint8_t> out_g(cloud, "g");
+  sensor_msgs::PointCloud2Iterator<uint8_t> out_b(cloud, "b");
+
+  // Enter vertices in the graph
+  std::vector<Eigen::Isometry3d> frames;
+  createSphereSamplesVoxel(_xi, _yi, _zi, frames, N);
+  for( int i = 0; i < N; ++i ) { 
+      float xd, yd, zd;
+      xd = (float)frames[i].translation()(0);
+      yd = (float)frames[i].translation()(1);
+      zd = (float)frames[i].translation()(2);
+      printf("Got xd yd zd: %f %f %f \n", xd, yd, zd);
+      *out_x = xd;
+      *out_y = yd;
+      *out_z = zd;
+      *out_r = 250; 
+      *out_g = 250; 
+      *out_b = 0; 
+      ++out_x; ++out_y; ++out_z;
+      ++out_r; ++out_g; ++out_b;
+  }
+ 
+  return cloud;
+}
+
+/**
  * @brief createSphereSamplesVoxel
  */
 void ReachGraph::createSphereSamplesVoxel(const int &_xi, 
                                 const int &_yi, 
-                                const int &zi,
+                                const int &_zi,
                                 std::vector<Eigen::Isometry3d> &_frames, 
-                                const int _n)
+                                const int &_n)
 {
+  _frames.clear();
+
+  double x, y, z;
+  double dx, dy, dz;
+
+  vertexToWorld(_xi, _yi, _zi, x, y, z);
+
   double theta_k, phi_k, h_k;
   double r= res_/2.0;
-  double x, y, z;
 
   for(int k = 1; k <= _n; ++k)
   {
-   h_k = -1 + 2*(k-1)/(_n-1);
+
+   h_k = -1.0 + 2.0*(double)(k-1)/(double)(_n-1);
    theta_k = acos(h_k);
 
    if(k == 1 || k == _n)
     phi_k = 0;
    else
-    phi_k = modulo(phi_k + 3.6/sqrt(_n) *1/sqrt(1 -h_k*h_k), (2*M_PI));
+    phi_k = modulo(phi_k + 3.6/sqrt(_n) *1/sqrt(1.0 - h_k*h_k), (2*M_PI));
   
-   x = r*sin(theta_k)*cos(phi_k);
-   y = r*sin(theta_k)*sin(phi_k);
-   z = r*cos(theta_k);
+   dx = r*sin(theta_k)*cos(phi_k);
+   dy = r*sin(theta_k)*sin(phi_k);
+   dz = r*cos(theta_k);
+
+   // TCP's Z vector towards center (-dx, -dy, -dz)
+   Eigen::Vector3d z_tcp; z_tcp << -dx, -dy, -dz;
+   // Regular Z
+   Eigen::Vector3d z_unit; z_unit << 0, 0, 1;
+   Eigen::Quaterniond qz;
+   qz.setFromTwoVectors(z_unit, z_tcp);
 
    Eigen::Isometry3d p; p.setIdentity();
-   p.translation() = Eigen::Vector3d(x,y,z);
+   p.translation() = Eigen::Vector3d(x + dx,y + dy,z + dz);
+   p.linear() = qz.toRotationMatrix();
    
    _frames.push_back(p);
+
   }
 
 }

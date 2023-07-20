@@ -61,9 +61,12 @@ class ReachGraph {
                                 const int &_yi, 
                                 const int &zi,
                                 std::vector<Eigen::Isometry3d> &_frames, 
-                                const int _n = 32);
+                                const int &_n = 32);
 
-  sensor_msgs::msg::PointCloud2 getPCD( ReachDataState _state, int _r, int _g, int _b );
+  sensor_msgs::msg::PointCloud2 getPCD( ReachDataState _state, 
+                                        int _r, int _g, int _b );
+
+  sensor_msgs::msg::PointCloud2 debugSamples(int _xi, int _yi, int _zi);
 
   inline int ref( int _xi, int _yi, int _zi );
   inline int getNumPoints();
