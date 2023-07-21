@@ -106,7 +106,7 @@ def generate_launch_description():
             {"chain_group_name": "panda_manipulator"},
             {"robot_name": "panda"}
         ]
-        )    
+    )    
 
 
     return LaunchDescription(

@@ -25,14 +25,11 @@ int main(int argc, char* argv[])
     return 1;
 
   // Actually generate the description
-  RCLCPP_WARN(rclcpp::get_logger("load_reach"), "Load Description");
-  rd.loadDescription("");
+  rd.loadDescription(chain_group);
 
   // View description
-  RCLCPP_WARN(rclcpp::get_logger("load_reach"), "View Description");
-  rd.viewDescription();
+  rd.viewDescription(chain_group);
 
-  RCLCPP_INFO(node->get_logger(), "Spin! ");
   rclcpp::spin(node);
 
   rclcpp::shutdown();

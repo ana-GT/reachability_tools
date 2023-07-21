@@ -24,19 +24,23 @@ int main(int argc, char* argv[])
   if(!rd.initialize(robot_name))
     return 1;
 
-  // Quick debug test
-  //rd.quickTest(chain_group);
-
   // Actually generate the description
-  if(!rd.generateDescription(chain_group))
-    return 1;
+  auto ts = std::chrono::system_clock::now();
+  bool b = rd.generateDescription(chain_group);
+  auto tf = std::chrono::system_clock::now();
+  std::chrono::duration<double> dt = (tf - ts);
+  
+  RCLCPP_INFO(node->get_logger(), "generate Description Time: %f seconds ", dt.count());   
 
-  // Store the description
-  rd.storeDescription();
+  if(b)
+  {
+    // Store the description
+    rd.storeDescription(chain_group);
 
-  // View
-  rd.viewDescription();
-
+    // View
+    rd.viewDescription(chain_group);
+  }
+  
   RCLCPP_INFO(node->get_logger(), "Spin! ");
   rclcpp::spin(node);
 

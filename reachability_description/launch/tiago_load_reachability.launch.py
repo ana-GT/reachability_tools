@@ -13,7 +13,20 @@ from launch_ros.substitutions import FindPackageShare, ExecutableInPackage
 from tiago_description.tiago_launch_utils import (get_tiago_hw_arguments,
 						    TiagoXacroConfigSubstitution)
 
+#####################################
+# Helpers functions
+def load_yaml(package_name, file_path):
+    package_path = get_package_share_directory(package_name)
+    absolute_file_path = os.path.join(package_path, file_path)
 
+    try:
+        with open(absolute_file_path, "r") as file:
+            return yaml.safe_load(file)
+    except EnvironmentError:  # parent of IOError, OSError *and* WindowsError where available
+        return None
+
+
+#####################################
 def generate_launch_description():
 
     tiago_args = get_tiago_hw_arguments(
@@ -46,6 +59,13 @@ def generate_launch_description():
     robot_description_semantic = {
         'robot_description_semantic': srdf_config
     }
+
+    # Reach parameters
+    reachability_yaml = load_yaml(
+        "reachability_description", "config/tiago/reachability_params.yaml"
+    )
+    reachability_params = {"reachability_params": reachability_yaml}
+
 
     rviz_base = os.path.join(get_package_share_directory("robots_config"), "rviz")
     rviz_full_config = os.path.join(rviz_base, "tiago.rviz")
@@ -81,17 +101,18 @@ def generate_launch_description():
         output='screen')
 
     # Reach
-    reach_gen = Node(
+    load_reach = Node(
         package='reachability_description',
-        executable='reachability_generation_node',
+        executable='load_reachability_node',
         output='screen',
-        parameters=[{
-            "robot_description": urdf_config,
-            "robot_description_semantic" : srdf_config,
-            "chain_group_name": "arm_torso", # arm_torso, arm
-            "robot_name": "tiago" 
-        }]
-        )    
+        parameters=[
+            reachability_params,
+            {"robot_description": urdf_config},
+            {"robot_description_semantic" : srdf_config},
+            {"chain_group_name": "arm_torso"}, # arm_torso, arm
+            {"robot_name": "tiago"} 
+        ]
+    )    
 
 
     return LaunchDescription(
@@ -100,7 +121,7 @@ def generate_launch_description():
           rviz_node,
           static_tf,
           joint_publisher,
-          reach_gen
+          load_reach
         ]
 
     )

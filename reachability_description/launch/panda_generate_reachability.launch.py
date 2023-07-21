@@ -101,13 +101,12 @@ def generate_launch_description():
         executable='generate_reachability_node',
         output='screen',
         parameters=[reachability_params,
-                    {
-            "robot_description": robot_description_config.toxml(),
-            "robot_description_semantic" : srdf_config,
-            "chain_group_name": "panda_manipulator",
-            "robot_name": "panda"
-        }]
-        )    
+            {"robot_description": robot_description_config.toxml()},
+            {"robot_description_semantic" : srdf_config},
+            {"chain_group_name": "panda_manipulator"},
+            {"robot_name": "panda"}
+        ]
+    )    
 
 
     return LaunchDescription(

@@ -2,12 +2,16 @@ import os
 import yaml
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import Command, FindExecutable, LaunchConfiguration
+from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
 from launch.conditions import IfCondition, UnlessCondition
 from launch_ros.actions import Node
 from launch.actions import ExecuteProcess
 from ament_index_python.packages import get_package_share_directory
 import xacro
+
+from launch_ros.substitutions import FindPackageShare, ExecutableInPackage
+from tiago_description.tiago_launch_utils import (get_tiago_hw_arguments,
+						    TiagoXacroConfigSubstitution)
 
 #####################################
 # Helpers functions
@@ -25,48 +29,53 @@ def load_yaml(package_name, file_path):
 #####################################
 def generate_launch_description():
 
-    robot_description_config = xacro.process_file(
-        os.path.join(
-            get_package_share_directory("robots_config"),
-            "robots", "panda",
-            "panda.urdf.xacro",
-        ),
-        mappings ={'hand': 'true'}
-    )
-    robot_description = {"robot_description": robot_description_config.toxml()}
+    tiago_args = get_tiago_hw_arguments(
+        laser_model=True,
+        arm=True,
+        end_effector=True,
+        ft_sensor=True,
+        camera_model=True,
+        default_end_effector='pal-gripper',
+        default_laser_model="sick-571")
+
+
+    urdf_config = Command(
+        [
+            ExecutableInPackage(package='xacro', executable="xacro"),
+            ' ',
+            PathJoinSubstitution(
+                [FindPackageShare('robots_config'),
+                 'robots', 'tiago', 'tiago.urdf.xacro']),
+            TiagoXacroConfigSubstitution()
+        ])
+
+    parameters = {'robot_description': urdf_config}
 
     srdf_file = os.path.join(get_package_share_directory('robots_config'), 'config',
-                                              'panda',
-                                              'srdf',
-                                              'panda_arm.srdf.xacro')
-    srdf_config = Command(
-        [FindExecutable(name='xacro'), ' ', srdf_file, ' hand:=true']
-    )
+                                     'tiago', 'tiago_right-arm_pal-gripper_schunk-ft.srdf')
+    srdf_config = open(srdf_file).read()
+
+
     robot_description_semantic = {
         'robot_description_semantic': srdf_config
     }
 
     # Reach parameters
     reachability_yaml = load_yaml(
-        "reachability_description", "config/panda/reachability_params.yaml"
+        "reachability_description", "config/tiago/reachability_params.yaml"
     )
     reachability_params = {"reachability_params": reachability_yaml}
 
 
-    panda_zero_joints = {
-      "zeros.panda_joint4": -1.5708,
-      "zeros.panda_joint6": 1.5708 	
-    }
-
     rviz_base = os.path.join(get_package_share_directory("robots_config"), "rviz")
-    rviz_full_config = os.path.join(rviz_base, "panda.rviz")
+    rviz_full_config = os.path.join(rviz_base, "tiago.rviz")
     rviz_node = Node(
         package="rviz2",
         executable="rviz2",
         name="rviz2",
         output="log",
         arguments=["-d", rviz_full_config],
-        parameters=[robot_description]
+        parameters=[]
     )
 
     # Static TF
@@ -75,47 +84,44 @@ def generate_launch_description():
         executable="static_transform_publisher",
         name="static_transform_publisher",
         output="log",
-        arguments=["0.0", "0.0", "0.0", "0.0", "0.0", "0.0", "world", "panda_link0"],
+        arguments=["0.0", "0.0", "0.0", "0.0", "0.0", "0.0", "world", "base_link"],
     )
 
     # Publish TF
-    robot_state_publisher = Node(
-        package="robot_state_publisher",
-        executable="robot_state_publisher",
-        name="robot_state_publisher",
-        output="both",
-        parameters=[robot_description],
-    )
+    rsp = Node(package='robot_state_publisher',
+               executable='robot_state_publisher',
+               output='both',
+               parameters=[{'robot_description': urdf_config}])
     
     # Joint State publisher
     joint_publisher = Node(
         package='joint_state_publisher',
         executable='joint_state_publisher',
         name='joint_state_publisher',
-        parameters=[panda_zero_joints],
         output='screen')
 
-    # Panda
-    load_reach = Node(
+    # Estimate
+    estimate_reach = Node(
         package='reachability_description',
-        executable='load_reachability_node',
+        executable='estimate_reachability_limits_node',
         output='screen',
-        parameters=[reachability_params,
-            {"robot_description": robot_description_config.toxml()},
+        parameters=[
+            reachability_params,
+            {"robot_description": urdf_config},
             {"robot_description_semantic" : srdf_config},
-            {"chain_group_name": "panda_manipulator"},
-            {"robot_name": "panda"} 
+            {"chain_group_name": "arm_torso"}, # arm_torso, arm
+            {"robot_name": "tiago"} 
         ]
     )    
 
 
     return LaunchDescription(
-        [
-            rviz_node,
-            static_tf,
-            robot_state_publisher,
-            joint_publisher,
-            load_reach
+        [*tiago_args,
+          rsp,
+          rviz_node,
+          static_tf,
+          joint_publisher,
+          estimate_reach
         ]
 
     )

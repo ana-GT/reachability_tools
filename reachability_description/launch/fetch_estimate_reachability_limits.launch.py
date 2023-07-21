@@ -21,61 +21,42 @@ def load_yaml(package_name, file_path):
     except EnvironmentError:  # parent of IOError, OSError *and* WindowsError where available
         return None
 
-
-#####################################
+###########################################
 def generate_launch_description():
 
     robot_description_config = xacro.process_file(
         os.path.join(
             get_package_share_directory("robots_config"),
-            "robots", "panda",
-            "panda.urdf.xacro",
-        ),
-        mappings ={'hand': 'true'}
+            "robots", "fetch",
+            "fetch.urdf.xacro",
+        )
     )
     robot_description = {"robot_description": robot_description_config.toxml()}
 
     srdf_file = os.path.join(get_package_share_directory('robots_config'), 'config',
-                                              'panda',
-                                              'srdf',
-                                              'panda_arm.srdf.xacro')
-    srdf_config = Command(
-        [FindExecutable(name='xacro'), ' ', srdf_file, ' hand:=true']
-    )
+                                     'fetch', 'fetch.srdf')
+    srdf_config = open(srdf_file).read()
+
     robot_description_semantic = {
         'robot_description_semantic': srdf_config
     }
 
     # Reach parameters
     reachability_yaml = load_yaml(
-        "reachability_description", "config/panda/reachability_params.yaml"
+        "reachability_description", "config/fetch/reachability_params.yaml"
     )
     reachability_params = {"reachability_params": reachability_yaml}
 
 
-    panda_zero_joints = {
-      "zeros.panda_joint4": -1.5708,
-      "zeros.panda_joint6": 1.5708 	
-    }
-
     rviz_base = os.path.join(get_package_share_directory("robots_config"), "rviz")
-    rviz_full_config = os.path.join(rviz_base, "panda.rviz")
+    rviz_full_config = os.path.join(rviz_base, "fetch.rviz")
     rviz_node = Node(
         package="rviz2",
         executable="rviz2",
         name="rviz2",
         output="log",
         arguments=["-d", rviz_full_config],
-        parameters=[robot_description]
-    )
-
-    # Static TF
-    static_tf = Node(
-        package="tf2_ros",
-        executable="static_transform_publisher",
-        name="static_transform_publisher",
-        output="log",
-        arguments=["0.0", "0.0", "0.0", "0.0", "0.0", "0.0", "world", "panda_link0"],
+        parameters=[]
     )
 
     # Publish TF
@@ -92,19 +73,19 @@ def generate_launch_description():
         package='joint_state_publisher',
         executable='joint_state_publisher',
         name='joint_state_publisher',
-        parameters=[panda_zero_joints],
         output='screen')
 
-    # Panda
-    load_reach = Node(
+    # Fetch
+    reach_gen = Node(
         package='reachability_description',
-        executable='load_reachability_node',
+        executable='estimate_reachability_limits_node',
         output='screen',
-        parameters=[reachability_params,
+        parameters=[
+            reachability_params,
             {"robot_description": robot_description_config.toxml()},
             {"robot_description_semantic" : srdf_config},
-            {"chain_group_name": "panda_manipulator"},
-            {"robot_name": "panda"} 
+            {"chain_group_name": "arm_with_torso"}, # arm
+            {"robot_name": "fetch"}
         ]
     )    
 
@@ -112,10 +93,9 @@ def generate_launch_description():
     return LaunchDescription(
         [
             rviz_node,
-            static_tf,
             robot_state_publisher,
             joint_publisher,
-            load_reach
+            reach_gen
         ]
 
     )

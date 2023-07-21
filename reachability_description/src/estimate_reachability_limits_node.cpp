@@ -26,20 +26,13 @@ int main(int argc, char* argv[])
   if(!rd.initialize(robot_name))
     return 1;
 
-  // Quick debug test
-  //rd.quickTest(chain_group);
-
   // Actually generate the description
-/*  if(!rd.estimateReachLimits(chain_group))
-    return 1;
+  auto ts = std::chrono::system_clock::now();
+  rd.estimateReachLimits(chain_group);
+  auto tf = std::chrono::system_clock::now();
+  std::chrono::duration<double> dt = (tf - ts);
+  RCLCPP_INFO(node->get_logger(), "Estimate reach limits for robot %s and group %s. Time: %f seconds ", robot_name.c_str(), chain_group.c_str(), dt.count());   
 
-  // Store the description
-  rd.storeDescription();
-
-  // View
-  rd.viewDescription();*/
-
-  RCLCPP_INFO(node->get_logger(), "Spin! ");
   rclcpp::spin(node);
 
   rclcpp::shutdown();

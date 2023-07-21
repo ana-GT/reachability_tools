@@ -222,27 +222,63 @@ void ReachGraph::setState( int _xi, int _yi, int _zi, const reachability_msgs::m
     points_[ref(_xi, _yi, _zi)] = _rd;
 }
 
+void fillNormal(const std::string &_plane, 
+                const double &_plane_dist,
+                double &_nx, double &_ny, double &_nz, double &_d)
+{
+  if(_plane == std::string("XY+"))
+    { _nx = 0; _ny = 0; _nz = -1.0; _d = _plane_dist; }
+  else if(_plane == std::string("XY-"))
+    { _nx = 0; _ny = 0; _nz = 1.0; _d = -_plane_dist; } 
+  else if(_plane == std::string("XZ+"))
+    { _nx = 0; _ny = -1.0; _nz = 0.0; _d = _plane_dist; }
+  else if(_plane == std::string("XZ-"))
+    { _nx = 0; _ny = 1.0; _nz = 0.0; _d = -_plane_dist; } 
+  else if(_plane == std::string("YZ+"))
+    { _nx = -1.0; _ny = 0.0; _nz = 0.0; _d = _plane_dist; }
+  else if(_plane == std::string("YZ-"))
+    { _nx = 1.0; _ny = 0; _nz = 0.0; _d = -_plane_dist; } 
+  else if(_plane == std::string("FULL"))
+  { _nx = 0; _ny = 0; _nz = 0; _d = 0; }
+
+}
 
 /**
  * @function getPCD
  */
-sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( const uint8_t &_state, int _r, int _g, int _b )
+sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( const uint8_t &_state, 
+                                                  int _r, int _g, int _b,
+                                                  const std::string &_plane,
+                                                  const double &_plane_dist )
 {
+  RCLCPP_WARN(rclcpp::get_logger("getPCD"), "Plane type: %s dist: %f ", _plane.c_str(), _plane_dist);
   reachability_msgs::msg::ReachData *v;
   v = &points_[0];
   
   int max_sols = 0;
   int min_sols = 100000;
 
+  int xi, yi, zi;
+  double x, y, z;
+
+  double nx, ny, nz, d;
+  fillNormal(_plane, _plane_dist, nx, ny, nz, d);
+
   // Get how many obstacle vertices there are in the graph
   int count = 0;
   for( int i = 0; i < num_points_; ++i ) {
     if( v->state == _state ) {
-      count++;
-      if(v->samples.size() > max_sols)
-        max_sols = v->samples.size();
-      if(v->samples.size() < min_sols)
-        min_sols = v->samples.size();
+
+      indexToVertex( i, xi, yi, zi );
+      vertexToWorld( xi, yi, zi, x, y, z );
+
+      if( nx*x + ny*y + nz*z +d >= 0.0)
+        count++;
+
+        if(v->samples.size() > max_sols)
+          max_sols = v->samples.size();
+        if(v->samples.size() < min_sols)
+          min_sols = v->samples.size();
     }
     v++;
   }
@@ -250,7 +286,6 @@ sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( const uint8_t &_state, int _r,
   RCLCPP_WARN(rclcpp::get_logger("getPCD"), "NUmber of solutions range from %d to %d ", min_sols, max_sols);
 
   sensor_msgs::msg::PointCloud2 cloud;
-  RCLCPP_WARN(rclcpp::get_logger("getPCD"), "Frame for cloud: %s ", chain_info_.root_link.c_str());
 
   cloud.header.frame_id = chain_info_.root_link;
   cloud.width = count;
@@ -270,26 +305,31 @@ sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( const uint8_t &_state, int _r,
   sensor_msgs::PointCloud2Iterator<uint8_t> out_b(cloud, "b");
 
   // Enter vertices in the graph
-  int xi, yi, zi;
-  double x, y, z;
   v = &points_[0];
 
   for( int i = 0; i < num_points_; ++i ) {
     if( v->state == _state ) {
- 
+
       indexToVertex( i, xi, yi, zi );
       vertexToWorld( xi, yi, zi, x, y, z );
 
-      double ratio = (double) v->samples.size() / (double) params_.num_voxel_samples;
-      *out_x = x;
-      *out_y = y;
-      *out_z = z;
-      *out_r = (int)( 255.0*( modulo( 2*(1-ratio), 1.0) )); 
-      *out_g = (int)( 255*( modulo( 2*ratio, 1.0) )); 
-      *out_b = 0; 
+      if( nx*x + ny*y + nz*z +d >= 0.0)
+      {
+        double ratio = (double) v->samples.size() / (double) params_.num_voxel_samples;
+        *out_x = x;
+        *out_y = y;
+        *out_z = z;
+        //*out_r = (int)( 255.0*( modulo( 2*(1-ratio), 1.0) )); 
+        //*out_g = (int)( 255*( modulo( 2*ratio, 1.0) )); 
+        double red = ratio > 0.5? 1.0 - 2.0*(ratio - 0.5) : 1.0;
+        double green = ratio > 0.5? 1.0 : 2.0*ratio;
+        *out_r = (int)(red*255);
+        *out_g = (int)(green*255);
+        *out_b = 0; 
 
-      ++out_x; ++out_y; ++out_z;
-      ++out_r; ++out_g; ++out_b;
+        ++out_x; ++out_y; ++out_z;
+        ++out_r; ++out_g; ++out_b;
+      } // if nx, ny, nz
     }
     v++;
   }
