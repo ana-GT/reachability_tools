@@ -32,11 +32,33 @@ class ReachabilityDescription
                     const double &_eps = 1e-5, 
                     const TRAC_IK::SolveType &_ik_type = TRAC_IK::SolveType::Distance);
     bool quickTest(const std::string &_chain_group);
+    
     bool generateDescription(const std::string &_chain_group);
+    bool loadDescription(const std::string &_filename);
+
+    bool storeDescription(const std::string &_optional_filename = "");
+
+    bool viewDescription();
 
     void reach_calc( const double &_min_x, const double &_min_y, const double &_min_z,
                      const double &_max_x, const double &_max_y, const double &_max_z,
                      const reachability_msgs::msg::ChainInfo &_ci);
+
+    bool writeToDisk(const reachability_msgs::msg::ReachData &_msg,
+                     const std::string &_filename);
+    bool readFromDisk(const std::string &_filename,
+                      reachability_msgs::msg::ReachData &_msg);
+
+void estimateReachLimits( const reachability_msgs::msg::ChainInfo &_ci);
+
+reachability_msgs::msg::ReachData fillData(const std::shared_ptr<ReachGraph> &_reach_graph, 
+                                          int _xi, int _yi, int _zi,
+                                          const std::shared_ptr<TRAC_IK::TRAC_IK> &_ik_solver,
+                                          const reachability_msgs::msg::ChainInfo &_ci,
+                                          const std::shared_ptr<robot_unit::RobotCollisionObject> &_rco);
+
+bool getReachabilityData(const double &_x, const double &_y, const double &_z, 
+                         reachability_msgs::msg::ReachData &_data);
 
     protected:
     rclcpp::Node::SharedPtr nh_;

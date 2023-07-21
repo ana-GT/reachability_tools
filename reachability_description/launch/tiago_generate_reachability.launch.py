@@ -56,7 +56,7 @@ def launch(context, *args, **kwargs):
     return [
         Node(
             package='reachability_description',
-            executable='reachability_generation_node',
+            executable='generate_reachability_node',
             output='screen',
             parameters=[{
                 'robot_description': generate_robot_description_action(),

@@ -24,6 +24,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 "msg/ReachData.msg"
 "msg/ReachSample.msg"
 "msg/ReachGraph.msg"
+DEPENDENCIES geometry_msgs std_msgs
 )
 
 

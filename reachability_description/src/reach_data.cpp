@@ -18,6 +18,20 @@ double modulo(const double &_val, const double &_factor)
   return new_val; 
 }
 
+/**
+ * @function calculateDims 
+ */
+void ReachGraph::calculateDims()
+{
+  num_x_ = round( ( params_.max_x - params_.min_x ) / params_.resolution );
+  num_y_ = round( ( params_.max_y - params_.min_y ) / params_.resolution );
+  num_z_ = round( ( params_.max_z - params_.min_z ) / params_.resolution );
+
+  step_yz_ = num_y_*num_z_;
+  step_z_ = num_z_;
+
+  num_points_ = num_x_*num_y_*num_z_;
+}
 
 /**
  * @function Graph
@@ -40,35 +54,61 @@ ReachGraph::ReachGraph( const reachability_msgs::msg::ChainInfo &_chain_info,
  params_.resolution = _resolution;
  params_.num_voxel_samples = _voxel_samples;
 
-  num_x_ = ( ( params_.max_x - params_.min_x ) / params_.resolution );
-  num_y_ = ( ( params_.max_y - params_.min_y ) / params_.resolution );
-  num_z_ = ( ( params_.max_z - params_.min_z ) / params_.resolution );
+ calculateDims();
 
-  step_yz_ = num_y_*num_z_;
-  step_z_ = num_z_;
-
-  num_points_ = num_x_*num_y_*num_z_;
   points_ = new reachability_msgs::msg::ReachData[num_points_];
-
   std::fill( points_, points_ + num_points_, _default );
 
 }
 
 /**
+ * @function Constructor 
+ */
+ReachGraph::ReachGraph(const reachability_msgs::msg::ReachGraph &_msg)
+{
+  chain_info_ = _msg.chain_info;
+  params_ = _msg.params;
+
+ calculateDims();
+ points_ = new reachability_msgs::msg::ReachData[num_points_];
+ reachability_msgs::msg::ReachData default_data;
+ default_data.state = reachability_msgs::msg::ReachData::NO_FILLED;
+
+ std::fill( points_, points_ + num_points_, default_data );
+
+ if(_msg.points.size() != num_points_)
+ {
+   RCLCPP_ERROR(rclcpp::get_logger("ReachGraph"), "Loaded reachability does not match: %ld vs %ld ", _msg.points.size(), num_points_); 
+   return;
+ } 
+   RCLCPP_ERROR(rclcpp::get_logger("ReachGraph"), "Loading %ld points ", _msg.points.size());   
+  for(int i = 0; i < num_points_; ++i)
+  {
+    points_[i] = _msg.points[i];
+  }
+}
+
+
+
+/**
  * @function storeGraph 
  */
-bool ReachGraph::storeGraph()
+bool ReachGraph::toMsg(reachability_msgs::msg::ReachGraph &_graph)
 {
-  reachability_msgs::msg::ReachGraph graph;
-  graph.params = this->params_;
+  // Reset just in case
+  _graph.points.clear();
 
+  // Fill params
+  _graph.chain_info = this->chain_info_;
+  _graph.params = this->params_;
+
+  // Fill points
   reachability_msgs::msg::ReachData *v;
   v = &points_[0];
   
-  // Get how many obstacle vertices there are in the graph
   for( int i = 0; i < num_points_; ++i ) {
     reachability_msgs::msg::ReachData data = *v;
-    graph.points.push_back(data);
+    _graph.points.push_back(data);
     v++;
   }
 
@@ -89,14 +129,21 @@ ReachGraph::~ReachGraph() {
 /**
  * @function WorldToVertex
  */
-void ReachGraph::worldToVertex( const double &_x, const double &_y, const double &_z,
-			   int &_xi, int &_yi, int &_zi ) {
+bool ReachGraph::worldToVertex( const double &_x, const double &_y, const double &_z,
+			   int &_xi, int &_yi, int &_zi ) const {
 
   // mOX <= _wx <= mMaxX && mOX <= _wx <= mMaxY && mOY <= _wz <= mMaxZ
+  if(_x < params_.min_x || _x > params_.max_x ||
+  _y < params_.min_y || _y > params_.max_y ||
+  _z < params_.min_z || _z > params_.max_z )
+    return false;
+
   // floor effect expected: Round to minimum integer
-  _xi = (int) ( ( _x - params_.min_x ) / params_.resolution );
-  _yi = (int) ( ( _y - params_.min_y ) / params_.resolution );
-  _zi = (int) ( ( _z - params_.min_z ) / params_.resolution );
+  _xi = floor( ( _x - params_.min_x ) / params_.resolution );
+  _yi = floor( ( _y - params_.min_y ) / params_.resolution );
+  _zi = floor( ( _z - params_.min_z ) / params_.resolution );
+
+  return true;
 }
 
 /**
@@ -104,7 +151,7 @@ void ReachGraph::worldToVertex( const double &_x, const double &_y, const double
  */
 int ReachGraph::worldToIndex( const double &_x, 
 			 const double &_y, 
-			 const double &_z ) {
+			 const double &_z ) const {
   
   int xi, yi, zi;
   worldToVertex( _x, _y, _z, xi, yi, zi );
@@ -113,21 +160,28 @@ int ReachGraph::worldToIndex( const double &_x,
 
 /**
  * @function VertexToWorld
+ * @brief Vertex is the center of the voxel
  */
-void ReachGraph::vertexToWorld( const int &_xi, const int &_yi, const int &_zi,  
-			   double &_x, double &_y, double &_z ) {
+bool ReachGraph::vertexToWorld( const int &_xi, const int &_yi, const int &_zi,  
+			   double &_x, double &_y, double &_z ) const {
 
   // 0 <= _vx < numVx && 0 <= _vy < numVy && 0 <= _vz < numVz
-  _x = params_.min_x + params_.resolution*_xi;
-  _y = params_.min_y + params_.resolution*_yi;
-  _z = params_.min_z + params_.resolution*_zi;
+  if(!isValid(_xi, _yi, _zi))
+     return false;
+
+  double r = 0.5*params_.resolution;
+
+  _x = params_.min_x + params_.resolution*_xi + r;
+  _y = params_.min_y + params_.resolution*_yi + r;
+  _z = params_.min_z + params_.resolution*_zi + r;
+  return true;
 }
 
 /**
  * @function IndexToVertex
  */
 void ReachGraph::indexToVertex( const int &_ind,
-			   int &_x, int &_y, int &_z ) {
+			   int &_x, int &_y, int &_z ) const {
  
   int remaining;
   _x = _ind / step_yz_;
@@ -196,6 +250,7 @@ sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( const uint8_t &_state, int _r,
   RCLCPP_WARN(rclcpp::get_logger("getPCD"), "NUmber of solutions range from %d to %d ", min_sols, max_sols);
 
   sensor_msgs::msg::PointCloud2 cloud;
+  RCLCPP_WARN(rclcpp::get_logger("getPCD"), "Frame for cloud: %s ", chain_info_.root_link.c_str());
 
   cloud.header.frame_id = chain_info_.root_link;
   cloud.width = count;
@@ -296,7 +351,7 @@ sensor_msgs::msg::PointCloud2 ReachGraph::debugSamples(int _xi, int _yi, int _zi
 void ReachGraph::createSphereSamplesVoxel(const int &_xi, 
                                 const int &_yi, 
                                 const int &_zi,
-                                std::vector<Eigen::Isometry3d> &_frames)
+                                std::vector<Eigen::Isometry3d> &_frames) const
 {
   _frames.clear();
 
@@ -335,7 +390,7 @@ void ReachGraph::createSphereSamplesVoxel(const int &_xi,
    Eigen::Isometry3d p; p.setIdentity();
    p.translation() = Eigen::Vector3d(x + dx,y + dy,z + dz);
    p.linear() = qz.toRotationMatrix();
-   
+
    _frames.push_back(p);
 
   }

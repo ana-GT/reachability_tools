@@ -28,20 +28,25 @@ include_directories(
 )
 
 set(linked_fcl_libs /home/ana/local/lib/libfcl.so;/usr/lib/x86_64-linux-gnu/libccd.so;/usr/lib/x86_64-linux-gnu/libm.so;/opt/ros/galactic/lib/liboctomap.so;/opt/ros/galactic/lib/liboctomath.so)
-add_library(${PROJECT_NAME} SHARED src/reachability_description.cpp src/reach_data.cpp)
+add_library(${PROJECT_NAME} SHARED src/reachability_description.cpp src/reach_data.cpp src/reach_serialization.cpp)
 target_link_libraries(${PROJECT_NAME} ${linked_fcl_libs})
 ament_target_dependencies( ${PROJECT_NAME} ${DEPS})
 
-add_executable(reachability_generation_node src/reachability_generation_node.cpp)
-target_link_libraries(reachability_generation_node ${PROJECT_NAME})
-ament_target_dependencies(reachability_generation_node ${DEPS})
+add_executable(generate_reachability_node src/generate_reachability_node.cpp)
+target_link_libraries(generate_reachability_node ${PROJECT_NAME})
+ament_target_dependencies(generate_reachability_node ${DEPS})
+
+add_executable(load_reachability_node src/load_reachability_node.cpp)
+target_link_libraries(load_reachability_node ${PROJECT_NAME})
+ament_target_dependencies(load_reachability_node ${DEPS})
+
 
 install(
   DIRECTORY include/
   DESTINATION include
 )
 
-install(TARGETS ${PROJECT_NAME} reachability_generation_node
+install(TARGETS ${PROJECT_NAME} generate_reachability_node load_reachability_node
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib

@@ -59,6 +59,8 @@ public:
                            visualization_msgs::msg::MarkerArray &_markers);
   bool getChainInfo(const std::string &_chain_name, 
                     reachability_msgs::msg::ChainInfo &_chain_info);
+  bool getKDLChain(const std::string &_root_link, const std::string &_tip_link,
+                KDL::Chain &_chain);
 
 protected:
 

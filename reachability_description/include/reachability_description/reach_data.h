@@ -33,17 +33,20 @@ class ReachGraph {
 	          const double &_resolution, 
             const uint16_t &_voxel_samples,
 	          const reachability_msgs::msg::ReachData &_default);
+  
+  ReachGraph(const reachability_msgs::msg::ReachGraph &_msg);
+
   ~ReachGraph();
 
-  void worldToVertex( const double &_x, const double &_y, const double &_z,
-		              int &_xi, int &_yi, int &_zi );
+  bool worldToVertex( const double &_x, const double &_y, const double &_z,
+		              int &_xi, int &_yi, int &_zi ) const;
   
-  int worldToIndex( const double &_x, const double &_y, const double &_z );
+  int worldToIndex( const double &_x, const double &_y, const double &_z ) const;
 
-  void vertexToWorld( const int &_xi, const int &_yi, const int &_zi, 
-		      double &_x, double &_y, double &_z ); 
+  bool vertexToWorld( const int &_xi, const int &_yi, const int &_zi, 
+		      double &_x, double &_y, double &_z ) const; 
 
-  void indexToVertex( const int &_ind, int &_x, int &_y, int &_z );
+  void indexToVertex( const int &_ind, int &_x, int &_y, int &_z ) const;
 
 /*  void createBox( double _ox, double _oy, double _oz,
 		  double _lx, double _ly, double _lz,
@@ -52,22 +55,22 @@ class ReachGraph {
   void createSphereSamplesVoxel(const int &_xi, 
                                 const int &_yi, 
                                 const int &zi,
-                                std::vector<Eigen::Isometry3d> &_frames);
+                                std::vector<Eigen::Isometry3d> &_frames) const;
 
   sensor_msgs::msg::PointCloud2 getPCD( const uint8_t &_state, 
                                         int _r, int _g, int _b );
 
   sensor_msgs::msg::PointCloud2 debugSamples(int _xi, int _yi, int _zi);
 
-  bool storeGraph();
+  bool toMsg(reachability_msgs::msg::ReachGraph &_graph);
 
-  inline int ref( int _xi, int _yi, int _zi );
-  inline int getNumPoints();
-  inline int getNumX();
-  inline int getNumY();
-  inline int getNumZ();
+  inline int ref( int _xi, int _yi, int _zi ) const;
+  inline int getNumPoints() const;
+  inline int getNumX() const;
+  inline int getNumY() const;
+  inline int getNumZ() const;
   inline double getResolution() const;
-  inline bool isValid( int _xi, int _yi, int _zi );
+  inline bool isValid( int _xi, int _yi, int _zi ) const;
   inline reachability_msgs::msg::ReachData getState( int _ind );
   inline reachability_msgs::msg::ReachData getState( int _xi, int _yi, int _zi );
   void setState( int _xi, int _yi, int _zi, const reachability_msgs::msg::ReachData &_rd );
@@ -83,6 +86,9 @@ class ReachGraph {
   inline double getMaxZ() const { return params_.max_z; }
 
  private:
+
+  void calculateDims();
+
 
   reachability_msgs::msg::ChainInfo chain_info_;
   reachability_msgs::msg::ReachParams params_;
@@ -107,34 +113,34 @@ inline double ReachGraph::getResolution() const {
 /**
  * @function getNumV
  */
-inline int ReachGraph::getNumPoints() {
+inline int ReachGraph::getNumPoints() const{
   return num_points_;
 }
 
 /**
  * @function getNumVx
  */
-inline int ReachGraph::getNumX() {
+inline int ReachGraph::getNumX() const{
   return num_x_;
 }
 
 /**
  * @function getNumVy
  */
-inline int ReachGraph::getNumY() {
+inline int ReachGraph::getNumY() const{
   return num_y_;
 }
 
 /**
  * @function getNumVz
  */
-inline int ReachGraph::getNumZ() {
+inline int ReachGraph::getNumZ() const{
   return num_z_;
 }
 /**
  * @function ref
  */
-inline int ReachGraph::ref( int _xi, int _yi, int _zi ) {
+inline int ReachGraph::ref( int _xi, int _yi, int _zi ) const {
   return _xi*step_yz_ + _yi*step_z_ + _zi;
 }
 
@@ -142,7 +148,7 @@ inline int ReachGraph::ref( int _xi, int _yi, int _zi ) {
 /**
  * @function isValid
  */
-inline bool ReachGraph::isValid( int _xi, int _yi, int _zi ) {
+inline bool ReachGraph::isValid( int _xi, int _yi, int _zi ) const {
   if( _xi >= 0 && _xi < num_x_ &&
       _yi >= 0 && _yi < num_y_ && 
       _zi >= 0 && _zi < num_z_ ) {

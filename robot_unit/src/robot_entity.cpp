@@ -150,6 +150,16 @@ bool RobotEntity::getChainInfo(const std::string &_chain_name,
 }
 
 /**
+ * @function getKDLChain 
+ */
+bool RobotEntity::getKDLChain(const std::string &_root_link, const std::string &_tip_link,
+                              KDL::Chain &_chain)
+{
+  return tree_.getChain(_root_link, _tip_link, _chain);  
+}
+
+
+/**
  * @function getIndices
  */
 bool RobotEntity::getIndices()

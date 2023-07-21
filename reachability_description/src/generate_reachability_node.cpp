@@ -26,10 +26,17 @@ int main(int argc, char* argv[])
     return 1;
 
   // Quick debug test
-  rd.quickTest(chain_group);
+  //rd.quickTest(chain_group);
 
   // Actually generate the description
-  rd.generateDescription(chain_group);
+  if(!rd.generateDescription(chain_group))
+    return 1;
+
+  // Store the description
+  rd.storeDescription();
+
+  // View
+  rd.viewDescription();
 
   RCLCPP_INFO(node->get_logger(), "Spin! ");
   rclcpp::spin(node);
