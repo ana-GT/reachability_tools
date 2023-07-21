@@ -18,7 +18,6 @@ namespace reachability_description
 ReachabilityDescription::ReachabilityDescription(const rclcpp::Node::SharedPtr &_nh) :
 nh_(_nh)
 {
-
 }
 
 /**
@@ -34,12 +33,11 @@ ReachabilityDescription::~ReachabilityDescription()
  * @function initialize
  * @brief Well, initialize
  */
-bool ReachabilityDescription::initialize(const std::string &_robot_name,
-                                         const double &_max_time, 
-                                         const double &_eps, 
-                                         const TRAC_IK::SolveType &_ik_type)
+bool ReachabilityDescription::initialize(const std::string &_robot_name)
 {
   robot_name_ = _robot_name;
+
+  TRAC_IK::SolveType ik_type = TRAC_IK::SolveType::Distance;
 
   // Declare parameters
   if(!nh_->has_parameter("robot_description"))
@@ -134,14 +132,10 @@ void ReachabilityDescription::reach_calc( const double &_min_x, const double &_m
 {
   int found_sols = 0;
 
-  double max_time = 0.001;
-  double eps = 1e-5;
-  TRAC_IK::SolveType ik_type = TRAC_IK::SolveType::Distance;
-
   std::shared_ptr<TRAC_IK::TRAC_IK> ik_solver;
   ik_solver.reset( new TRAC_IK::TRAC_IK(nh_, _ci.root_link, _ci.tip_link, 
                               "robot_description", 
-                              max_time, eps, ik_type));
+                              ik_max_time, ik_epsilon, ik_type));
 
   reachability_msgs::msg::ReachData reach_default;
   reach_default.state = reachability_msgs::msg::ReachData::NO_FILLED;
@@ -264,13 +258,11 @@ void ReachabilityDescription::estimateReachLimits( const reachability_msgs::msg:
 {
   std::shared_ptr<TRAC_IK::TRAC_IK> ik_solver;
 
-  double max_time = 0.001;
-  double eps = 1e-5;
   TRAC_IK::SolveType ik_type = TRAC_IK::SolveType::Distance;
 
   ik_solver.reset( new TRAC_IK::TRAC_IK(nh_, _ci.root_link, _ci.tip_link, 
                               "robot_description", 
-                              max_time, eps, ik_type));
+                              ik_max_time_, ik_epsilon_, ik_type));
 
   KDL::Chain chain;
   re_->getKDLChain(_ci.root_link, _ci.tip_link, chain);
@@ -334,41 +326,62 @@ void ReachabilityDescription::estimateReachLimits( const reachability_msgs::msg:
  */
 bool ReachabilityDescription::generateDescription(const std::string &_chain_group)
 {
+
+  // Parameters
+  std::shared_ptr<reachability_description_params::ParamListener> param_listener;
+  reachability_description_params::Params params;
+
+  std::string reachability_param_prefix = "reachability_params." + _chain_group;
+  param_listener = std::make_shared<reachability_description_params::ParamListener>(nh_, reachability_param_prefix);
+  params = param_listener_->get_params();
+
+  double ik_max_time = params.ik_max_time;
+  double ik_epsilon = params.ik_epsilon;
+  
+  TRAC_IK::SolveType ik_type = TRAC_IK::SolveType::Distance;
+
+  
+  double x_min, y_min, z_min, x_max, y_max, z_max, x_mid, y_mid, z_mid;
+  double res; 
+  int num_voxel_samples;
+
+  x_min = params.x_min;
+  y_min = params.y_min;
+  z_min = params.z_min;
+  x_max = params.x_max;
+  y_max = params.y_max;
+  z_max = params.z_max;
+  res = params.voxel_resolution;
+  num_voxel_samples = params.voxel_num_samples;
+
+  x_mid = (x_min + x_max)*0.5;
+  y_mid = (y_min + y_max)*0.5;
+  z_mid = (z_min + z_max)*0.5;
+  
+
   reachability_msgs::msg::ChainInfo chain_info;
   re_->getChainInfo(_chain_group, chain_info);
 
   // Init reach graph
-  double xmin, ymin, zmin, xmax, ymax, zmax, xmid, ymid, zmid;
-  double res; 
   reachability_msgs::msg::ReachData reach_default;
+  reach_default.state = reachability_msgs::msg::ReachData::NO_FILLED;
 
-  estimateReachLimits(chain_info);
-  return false;
-    xmin = -1.2; ymin = -1.0; zmin = -0.2;
-    xmax = 1.2; ymax = 1.0; zmax = 1.6;
-    res = 0.05;
-    int num_voxel_samples = 32;
-    reach_default.state = reachability_msgs::msg::ReachData::NO_FILLED;
-
-    reach_graph_.reset( new ReachGraph( chain_info, xmin, ymin, zmin, xmax, ymax, zmax,
+  reach_graph_.reset( new ReachGraph( chain_info, x_min, y_min, z_min, x_max, y_max, z_max,
 	      res, num_voxel_samples, reach_default )); 
 
-xmid = (xmin + xmax)*0.5;
-ymid = (ymin + ymax)*0.5;
-zmid = (zmin + zmax)*0.5;
 
 auto ts = std::chrono::system_clock::now();
  std::thread to1_( &ReachabilityDescription::reach_calc, this, 
-                  xmin, ymin, zmin, xmid, ymid, zmax, 
-                  chain_info);
+                  x_min, y_min, z_min, x_mid, y_mid, z_max, 
+                  chain_info, ik_max_time, ik_epsilon, );
  std::thread to2_( &ReachabilityDescription::reach_calc, this, 
-                  xmin, ymid, zmin, xmid, ymax, zmax, 
+                  x_min, y_mid, z_min, xmid, y_max, z_max, 
                   chain_info);
  std::thread to3_( &ReachabilityDescription::reach_calc, this, 
-                  xmid, ymin, zmin, xmax, ymid, zmax, 
+                  x_mid, ymin, z_min, x_max, y_mid, z_max, 
                   chain_info);
  std::thread to4_( &ReachabilityDescription::reach_calc, this, 
-                  xmid, ymid, zmin, xmax, ymax, zmax, 
+                  x_mid, y_mid, z_min, x_max, y_max, z_max, 
                   chain_info);
 
  to1_.join();

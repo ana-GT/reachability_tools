@@ -96,17 +96,16 @@ def generate_launch_description():
         output='screen')
 
     # Panda
-    reach_gen = Node(
+    estimate_reach_limits = Node(
         package='reachability_description',
-        executable='generate_reachability_node',
+        executable='estimate_reachability_limits_node',
         output='screen',
         parameters=[reachability_params,
-                    {
-            "robot_description": robot_description_config.toxml(),
-            "robot_description_semantic" : srdf_config,
-            "chain_group_name": "panda_manipulator",
-            "robot_name": "panda"
-        }]
+            {"robot_description": robot_description_config.toxml()},
+            {"robot_description_semantic" : srdf_config},
+            {"chain_group_name": "panda_manipulator"},
+            {"robot_name": "panda"}
+        ]
         )    
 
 
@@ -116,7 +115,7 @@ def generate_launch_description():
             static_tf,
             robot_state_publisher,
             joint_publisher,
-            reach_gen
+            estimate_reach_limits
         ]
 
     )

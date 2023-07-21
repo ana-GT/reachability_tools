@@ -9,20 +9,6 @@ from launch.actions import ExecuteProcess
 from ament_index_python.packages import get_package_share_directory
 import xacro
 
-#####################################
-# Helpers functions
-def load_yaml(package_name, file_path):
-    package_path = get_package_share_directory(package_name)
-    absolute_file_path = os.path.join(package_path, file_path)
-
-    try:
-        with open(absolute_file_path, "r") as file:
-            return yaml.safe_load(file)
-    except EnvironmentError:  # parent of IOError, OSError *and* WindowsError where available
-        return None
-
-
-#####################################
 def generate_launch_description():
 
     robot_description_config = xacro.process_file(
@@ -50,13 +36,6 @@ def generate_launch_description():
       "zeros.panda_joint4": -1.5708,
       "zeros.panda_joint6": 1.5708 	
     }
-
-    # Reach parameters
-    reachability_yaml = load_yaml(
-        "reachability_description", "config/panda/reachability_params.yaml"
-    )
-    reachability_params = {"reachability_params": reachability_yaml}
-
 
     rviz_base = os.path.join(get_package_share_directory("robots_config"), "rviz")
     rviz_full_config = os.path.join(rviz_base, "panda.rviz")
@@ -96,16 +75,15 @@ def generate_launch_description():
         output='screen')
 
     # Panda
-    reach_gen = Node(
+    load_reach = Node(
         package='reachability_description',
-        executable='generate_reachability_node',
+        executable='load_reachability_node',
         output='screen',
-        parameters=[reachability_params,
-                    {
+        parameters=[{
             "robot_description": robot_description_config.toxml(),
             "robot_description_semantic" : srdf_config,
             "chain_group_name": "panda_manipulator",
-            "robot_name": "panda"
+            "robot_name": "panda" 
         }]
         )    
 
@@ -116,7 +94,7 @@ def generate_launch_description():
             static_tf,
             robot_state_publisher,
             joint_publisher,
-            reach_gen
+            load_reach
         ]
 
     )

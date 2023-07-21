@@ -24,7 +24,8 @@
   <depend>robot_unit</depend>
   <depend>pcl_conversions</depend>
   <depend>reachability_msgs</depend>
-
+  <depend>generate_parameter_library</depend>
+  
   <export>
     <build_type>ament_cmake</build_type>
   </export>

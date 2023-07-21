@@ -19,7 +19,6 @@ int main(int argc, char* argv[])
     node->declare_parameter("robot_name", std::string(""));
   node->get_parameter("robot_name", robot_name);
 
-
   // Create main class and initialize  
   reachability_description::ReachabilityDescription rd(node);
   if(!rd.initialize(robot_name))

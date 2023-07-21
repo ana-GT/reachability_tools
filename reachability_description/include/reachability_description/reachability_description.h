@@ -9,8 +9,9 @@
 
 #include <robot_unit/fast_robot_collision_object.h>
 #include <Eigen/Geometry>
-
 #include <reachability_description/reach_data.h>
+
+#include <reachability_description_parameters.hpp>
 
 namespace reachability_description
 {
@@ -27,10 +28,7 @@ class ReachabilityDescription
     ReachabilityDescription(const rclcpp::Node::SharedPtr &_nh);
     ~ReachabilityDescription();
 
-    bool initialize(const std::string &_robot_name,
-                    const double &_max_ik_time = 0.001, 
-                    const double &_eps = 1e-5, 
-                    const TRAC_IK::SolveType &_ik_type = TRAC_IK::SolveType::Distance);
+    bool initialize(const std::string &_robot_name);
     bool quickTest(const std::string &_chain_group);
     
     bool generateDescription(const std::string &_chain_group);
@@ -74,6 +72,7 @@ bool getReachabilityData(const double &_x, const double &_y, const double &_z,
     std::string srdf_string_;
 
     std::mutex reach_fill_mutex_;
+
 };
 
 } // namespace reachability_description

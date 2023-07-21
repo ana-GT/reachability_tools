@@ -1,0 +1,63 @@
+reachability_description_params:
+
+  ik_max_time: {
+    type: double,
+    default_value: 0.001,
+  }
+
+  ik_epsilon: {
+    type: double,
+    default_value: 0.00001,
+    description: "IK Epsilon"
+  }
+
+  # Voxel resolution
+  voxel_resolution: {
+    type: double,
+    default_value: 0.05,
+    description: "IK Epsilon"
+  }
+
+  voxel_num_samples: {
+    type: int,
+    default_value: 32,
+    description: "Number of samples on sphere inside voxel"
+  }
+
+  # Reachability space limits
+  x_min: {
+    type: double,
+    default_value: -1.0,
+    description: "Minimum x value in root_link terms"
+  }
+
+  y_min: {
+    type: double,
+    default_value: -1.0,
+    description: "Min value"
+  }
+
+  z_min: {
+    type: double,
+    default_value: -1.0,
+    description: "Min value"
+  }
+
+  x_max: {
+    type: double,
+    default_value: 1.0,
+    description: "Minimum x value in root_link terms"
+  }
+
+  y_max: {
+    type: double,
+    default_value: 1.0,
+    description: "Min value"
+  }
+
+  z_max: {
+    type: double,
+    default_value: 1.0,
+    description: "Min value"
+  }
+
