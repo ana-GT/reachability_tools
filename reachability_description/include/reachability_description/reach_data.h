@@ -62,6 +62,11 @@ class ReachGraph {
                                         const std::string &_plane,
                                         const double &_plane_dist );
 
+  sensor_msgs::msg::PointCloud2 getPCDHigherThan(const double &_ratio);
+
+
+  reachability_msgs::msg::ChainInfo getChainInfo() { return chain_info_; }
+
   sensor_msgs::msg::PointCloud2 debugSamples(int _xi, int _yi, int _zi);
 
   bool toMsg(reachability_msgs::msg::ReachGraph &_graph);

@@ -24,22 +24,6 @@ reachability_description_params:
     description: "Number of samples on sphere inside voxel"
   }
 
-  # Display reachability sliced: 
-  display_reachability:
-    plane: {
-      type: string,
-      default_value: "YZ+",
-      description: "Types of viz: Options: FULL, XY+, XY-, YZ+, YZ-, XZ+, XZ-",
-      validation: {
-        one_of<>:[["FULL", "XY+", "XY-", "YZ+", "YZ-", "XZ+", "XZ-"]]
-      }
-    }
-
-    plane_dist: {
-      type: double,
-      default_value: 0.3,
-      description: "Value at which the plane is located"
-    }
 
   # Reachability space limits
   x_min: {
@@ -92,3 +76,20 @@ reachability_description_params:
       default_value: 0.10,
       description: "Resolution at which the estimate node moves to calculate limits in XYZ"
     } 
+
+  # Display reachability sliced: 
+  display_reachability:
+    plane: {
+      type: string,
+      default_value: "YZ+",
+      description: "Types of viz: Options: FULL, XY+, XY-, YZ+, YZ-, XZ+, XZ-",
+      validation: {
+        one_of<>:[["FULL", "XY+", "XY-", "YZ+", "YZ-", "XZ+", "XZ-"]]
+      }
+    }
+
+    plane_dist: {
+      type: double,
+      default_value: 0.3,
+      description: "Value at which the plane is located"
+    }

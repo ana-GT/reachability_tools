@@ -66,66 +66,38 @@ def generate_launch_description():
     )
     reachability_params = {"reachability_params": reachability_yaml}
 
-
-    rviz_base = os.path.join(get_package_share_directory("robots_config"), "rviz")
-    rviz_full_config = os.path.join(rviz_base, "tiago.rviz")
-    rviz_node = Node(
-        package="rviz2",
-        executable="rviz2",
-        name="rviz2",
-        output="log",
-        arguments=["-d", rviz_full_config],
-        parameters=[]
-    )
-
-    # Base TF
-    move_base_tf = Node(
-        package="reachability_description",
-        executable="app_simulate_robot_base_motion",
-        name="app_simulate_robot_base_motion",
-        output="both",
-        #arguments=["0.0", "0.0", "0.0", "0.0", "0.0", "0.0", "world", "base_link"],
+    # markers
+    task_marker = Node(
+        package='jose',
+        executable='robot_to_task_markers_node',
+        output='screen',
         parameters=[
-            {"ref_frame": "world"},
-            {"robot_frame": "base_link"}
+            {"group": "arm_torso"},
+            {"robot_name": "tiago"}
         ]
-    )
+    )    
 
-    # Publish TF
-    rsp = Node(package='robot_state_publisher',
-               executable='robot_state_publisher',
-               output='both',
-               parameters=[{'robot_description': urdf_config}])
-    
-    # Joint State publisher
-    joint_publisher = Node(
-        package='joint_state_publisher',
-        executable='joint_state_publisher',
-        name='joint_state_publisher',
-        output='screen')
-
-    # Reach
-    load_reach = Node(
+    # Robot to task
+    app_robot_to_task = Node(
         package='reachability_description',
-        executable='load_reachability_node',
+        executable='app_robot_to_task',
         output='screen',
         parameters=[
             reachability_params,
             {"robot_description": urdf_config},
             {"robot_description_semantic" : srdf_config},
-            {"chain_group_name": "arm_torso"}, # arm_torso, arm
-            {"robot_name": "tiago"} 
+            {"chain_group_name": "arm_torso"},
+            {"robot_name": "tiago"}
         ]
     )    
 
 
+
+
     return LaunchDescription(
         [*tiago_args,
-          rsp,
-          rviz_node,
-          move_base_tf,
-          joint_publisher,
-          load_reach
+          task_marker,
+          app_robot_to_task
         ]
 
     )

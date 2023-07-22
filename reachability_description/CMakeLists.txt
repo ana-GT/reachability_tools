@@ -48,6 +48,21 @@ add_executable(estimate_reachability_limits_node src/estimate_reachability_limit
 target_link_libraries(estimate_reachability_limits_node ${PROJECT_NAME})
 ament_target_dependencies(estimate_reachability_limits_node ${DEPS})
 
+##########
+## Apps
+add_executable(app_hand_to_user apps/hand_to_user.cpp)
+target_link_libraries(app_hand_to_user ${PROJECT_NAME})
+ament_target_dependencies(app_hand_to_user ${DEPS})
+
+
+add_executable(app_robot_to_task apps/robot_to_task.cpp)
+target_link_libraries(app_robot_to_task ${PROJECT_NAME})
+ament_target_dependencies(app_robot_to_task ${DEPS})
+
+add_executable(app_simulate_robot_base_motion apps/simulate_robot_base_motion.cpp)
+target_link_libraries(app_simulate_robot_base_motion ${PROJECT_NAME})
+ament_target_dependencies(app_simulate_robot_base_motion ${DEPS})
+
 
 install(
   DIRECTORY include/
@@ -59,6 +74,9 @@ install(TARGETS ${PROJECT_NAME}
   generate_reachability_node  
   load_reachability_node 
   estimate_reachability_limits_node
+  app_hand_to_user
+  app_simulate_robot_base_motion
+  app_robot_to_task
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib

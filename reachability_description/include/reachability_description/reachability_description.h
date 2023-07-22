@@ -46,14 +46,16 @@ class ReachabilityDescription
 
     void estimateReachLimits(const std::string &_chain_group);
 
-reachability_msgs::msg::ReachData fillData(const std::shared_ptr<ReachGraph> &_reach_graph, 
+    reachability_msgs::msg::ReachData fillData(const std::shared_ptr<ReachGraph> &_reach_graph, 
                                           int _xi, int _yi, int _zi,
                                           const std::shared_ptr<TRAC_IK::TRAC_IK> &_ik_solver,
                                           const reachability_msgs::msg::ChainInfo &_ci,
                                           const std::shared_ptr<robot_unit::RobotCollisionObject> &_rco);
 
-bool getReachabilityData(const double &_x, const double &_y, const double &_z, 
+    bool getReachabilityData(const double &_x, const double &_y, const double &_z, 
                          reachability_msgs::msg::ReachData &_data);
+    
+    std::shared_ptr<ReachGraph> getReachGraph();
 
     protected:
 

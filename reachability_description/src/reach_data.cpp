@@ -81,7 +81,7 @@ ReachGraph::ReachGraph(const reachability_msgs::msg::ReachGraph &_msg)
    RCLCPP_ERROR(rclcpp::get_logger("ReachGraph"), "Loaded reachability does not match: %ld vs %ld ", _msg.points.size(), num_points_); 
    return;
  } 
-   RCLCPP_ERROR(rclcpp::get_logger("ReachGraph"), "Loading %ld points ", _msg.points.size());   
+   RCLCPP_INFO(rclcpp::get_logger("ReachGraph"), "Loading %ld points ", _msg.points.size());   
   for(int i = 0; i < num_points_; ++i)
   {
     points_[i] = _msg.points[i];
@@ -331,6 +331,81 @@ sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( const uint8_t &_state,
         ++out_r; ++out_g; ++out_b;
       } // if nx, ny, nz
     }
+    v++;
+  }
+ 
+  return cloud;
+}
+
+
+/**
+ * @function getPCD
+ */
+sensor_msgs::msg::PointCloud2 ReachGraph::getPCDHigherThan(const double &_ratio)
+{
+  RCLCPP_WARN(rclcpp::get_logger("getPCDHigherThan"), "PCD higher than");
+  reachability_msgs::msg::ReachData *v;
+  v = &points_[0];
+  
+  int max_sols = 0;
+  int min_sols = 100000;
+
+  int xi, yi, zi;
+  double x, y, z;
+
+  // Get how many obstacle vertices there are in the graph
+  int count = 0;
+  int ratio_above = floor(_ratio *  params_.num_voxel_samples);
+  for( int i = 0; i < num_points_; ++i ) {
+    if( v->state == reachability_msgs::msg::ReachData::FILLED ) {
+
+      if(v->samples.size() >= ratio_above)
+        count++;
+    }
+    v++;
+  }
+
+  sensor_msgs::msg::PointCloud2 cloud;
+
+  cloud.header.frame_id = chain_info_.root_link;
+  cloud.width = count;
+  cloud.height = 1;
+  cloud.is_dense = false;
+ 
+  sensor_msgs::PointCloud2Modifier modifier(cloud);
+  modifier.setPointCloud2FieldsByString(2, "xyz", "rgb");
+  modifier.resize(count);
+
+  // iterators
+  sensor_msgs::PointCloud2Iterator<float> out_x(cloud, "x");
+  sensor_msgs::PointCloud2Iterator<float> out_y(cloud, "y");
+  sensor_msgs::PointCloud2Iterator<float> out_z(cloud, "z");
+  sensor_msgs::PointCloud2Iterator<uint8_t> out_r(cloud, "r");
+  sensor_msgs::PointCloud2Iterator<uint8_t> out_g(cloud, "g");
+  sensor_msgs::PointCloud2Iterator<uint8_t> out_b(cloud, "b");
+
+  // Enter vertices in the graph
+  v = &points_[0];
+
+  for( int i = 0; i < num_points_; ++i ) {
+    if( v->state == reachability_msgs::msg::ReachData::FILLED ) {
+
+      indexToVertex( i, xi, yi, zi );
+      vertexToWorld( xi, yi, zi, x, y, z );
+
+      if(v->samples.size() >= ratio_above)
+      {
+        *out_x = x;
+        *out_y = y;
+        *out_z = z;
+        *out_r = 20;
+        *out_g = 255;
+        *out_b = 20; 
+
+        ++out_x; ++out_y; ++out_z;
+        ++out_r; ++out_g; ++out_b;
+      } // 
+    } // if
     v++;
   }
  

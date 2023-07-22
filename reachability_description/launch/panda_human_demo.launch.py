@@ -25,6 +25,7 @@ def load_yaml(package_name, file_path):
 #####################################
 def generate_launch_description():
 
+
     robot_description_config = xacro.process_file(
         os.path.join(
             get_package_share_directory("robots_config"),
@@ -53,71 +54,36 @@ def generate_launch_description():
     reachability_params = {"reachability_params": reachability_yaml}
 
 
-    panda_zero_joints = {
-      "zeros.panda_joint4": -1.5708,
-      "zeros.panda_joint6": 1.5708 	
-    }
-
-    rviz_base = os.path.join(get_package_share_directory("robots_config"), "rviz")
-    rviz_full_config = os.path.join(rviz_base, "panda.rviz")
-    rviz_node = Node(
-        package="rviz2",
-        executable="rviz2",
-        name="rviz2",
-        output="log",
-        arguments=["-d", rviz_full_config],
-        parameters=[robot_description]
-    )
-
-    # Static TF
-    static_tf = Node(
-        package="tf2_ros",
-        executable="static_transform_publisher",
-        name="static_transform_publisher",
-        output="log",
-        arguments=["0.0", "0.0", "0.0", "0.0", "0.0", "0.0", "world", "panda_link0"],
-    )
-
-    # Publish TF
-    robot_state_publisher = Node(
-        package="robot_state_publisher",
-        executable="robot_state_publisher",
-        name="robot_state_publisher",
-        output="both",
-        parameters=[robot_description],
-    )
-    
-    # Joint State publisher
-    joint_publisher = Node(
-        package='joint_state_publisher',
-        executable='joint_state_publisher',
-        name='joint_state_publisher',
-        parameters=[panda_zero_joints,
-                    {"source_list": ["joint_state_command"]}
-                ],
-        output='screen')
-
-    # Panda
-    load_reach = Node(
-        package='reachability_description',
-        executable='load_reachability_node',
+    # Human marker
+    human_marker = Node(
+        package='jose',
+        executable='jose_markers_node',
         output='screen',
-        parameters=[reachability_params,
+        parameters=[
+            {"group": "panda_manipulator"},
+            {"robot_name": "panda"}
+        ]
+    )    
+
+    # Human marker
+    app_hand_to_user = Node(
+        package='reachability_description',
+        executable='app_hand_to_user',
+        output='screen',
+        parameters=[
+            reachability_params,
             {"robot_description": robot_description_config.toxml()},
             {"robot_description_semantic" : srdf_config},
             {"chain_group_name": "panda_manipulator"},
-            {"robot_name": "panda"} 
+            {"robot_name": "panda"}
         ]
     )    
 
 
     return LaunchDescription(
         [
-            rviz_node,
-            static_tf,
-            robot_state_publisher,
-            joint_publisher,
-            load_reach
+            human_marker,
+            app_hand_to_user
         ]
 
     )

@@ -25,9 +25,13 @@ int main(int argc, char* argv[])
     return 1;
 
   // Actually generate the description
+  RCLCPP_INFO(node->get_logger(), "Loading description of robot %s and group %s ", robot_name.c_str(), chain_group.c_str());   
+
   rd.loadDescription(chain_group);
 
   // View description
+  RCLCPP_INFO(node->get_logger(), "View description of robot %s and group %s ", robot_name.c_str(), chain_group.c_str());   
+
   rd.viewDescription(chain_group);
 
   rclcpp::spin(node);

@@ -444,6 +444,7 @@ bool ReachabilityDescription::viewDescription(const std::string &_chain_group)
 
   sensor_msgs::msg::PointCloud2 msg;
   msg = reach_graph_->getPCD( reachability_msgs::msg::ReachData::FILLED, 125, 0, 125, plane, plane_dist);
+//  msg = reach_graph_->getPCDHigherThan(0.6);
 
   rclcpp::Rate r(1.0);
   for(unsigned int i = 0; i < 10; ++i)
@@ -500,6 +501,14 @@ bool ReachabilityDescription::storeDescription(const std::string &_chain_group)
   
   ReachSerial<reachability_msgs::msg::ReachGraph> reach_serial;
   return reach_serial.writeToDisk(msg, filename);
+}
+
+/**
+ * @function getReachGraph 
+ */
+std::shared_ptr<ReachGraph> ReachabilityDescription::getReachGraph()
+{
+  return reach_graph_;
 }
 
 

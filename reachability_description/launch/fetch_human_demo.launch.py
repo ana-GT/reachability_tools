@@ -21,7 +21,8 @@ def load_yaml(package_name, file_path):
     except EnvironmentError:  # parent of IOError, OSError *and* WindowsError where available
         return None
 
-###########################################
+
+#####################################
 def generate_launch_description():
 
     robot_description_config = xacro.process_file(
@@ -47,72 +48,36 @@ def generate_launch_description():
     )
     reachability_params = {"reachability_params": reachability_yaml}
 
-
-    rviz_base = os.path.join(get_package_share_directory("robots_config"), "rviz")
-    rviz_full_config = os.path.join(rviz_base, "fetch.rviz")
-    rviz_node = Node(
-        package="rviz2",
-        executable="rviz2",
-        name="rviz2",
-        output="log",
-        arguments=["-d", rviz_full_config],
-        parameters=[]
-    )
-
-    # Base TF
-    move_base_tf = Node(
-        package="reachability_description",
-        executable="app_simulate_robot_base_motion",
-        name="app_simulate_robot_base_motion",
-        output="both",
-        #arguments=["0.0", "0.0", "0.0", "0.0", "0.0", "0.0", "world", "base_link"],
-        parameters=[
-            {"ref_frame": "world"},
-            {"robot_frame": "base_link"}
-        ]
-    )
-
-    # Publish TF
-    robot_state_publisher = Node(
-        package="robot_state_publisher",
-        executable="robot_state_publisher",
-        name="robot_state_publisher",
-        output="both",
-        parameters=[robot_description],
-    )
-    
-    # Joint State publisher
-    joint_publisher = Node(
-        package='joint_state_publisher',
-        executable='joint_state_publisher',
-        name='joint_state_publisher',
+    # Human marker
+    human_marker = Node(
+        package='jose',
+        executable='jose_markers_node',
         output='screen',
         parameters=[
-            {"source_list": ["joint_state_command"]}
-        ])
+            {"group": "arm_with_torso"},
+            {"robot_name": "fetch"}
+        ]
+    )    
 
-    # Fetch
-    load_reach = Node(
+    # Human Plan
+    app_hand_to_user = Node(
         package='reachability_description',
-        executable='load_reachability_node',
+        executable='app_hand_to_user',
         output='screen',
         parameters=[
             reachability_params,
             {"robot_description": robot_description_config.toxml()},
             {"robot_description_semantic" : srdf_config},
-            {"chain_group_name": "arm_with_torso"}, # arm
-            {"robot_name": "fetch"} 
+            {"chain_group_name": "arm_with_torso"},
+            {"robot_name": "fetch"}
         ]
     )    
 
 
     return LaunchDescription(
         [
-            move_base_tf,
-            rviz_node,
-            robot_state_publisher,
-            joint_publisher,
-            load_reach
+            human_marker,
+            app_hand_to_user
         ]
 
     )
