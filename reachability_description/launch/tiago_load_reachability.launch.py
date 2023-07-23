@@ -102,7 +102,10 @@ def generate_launch_description():
         package='joint_state_publisher',
         executable='joint_state_publisher',
         name='joint_state_publisher',
-        output='screen')
+        output='screen',
+        parameters=[
+            {"source_list": ["joint_state_command"]}
+        ])
 
     # Reach
     load_reach = Node(

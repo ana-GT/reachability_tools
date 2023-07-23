@@ -57,9 +57,7 @@ class ReachGraph {
                                 const int &zi,
                                 std::vector<Eigen::Isometry3d> &_frames) const;
 
-  sensor_msgs::msg::PointCloud2 getPCD( const uint8_t &_state, 
-                                        int _r, int _g, int _b,
-                                        const std::string &_plane,
+  sensor_msgs::msg::PointCloud2 getPCD( const std::string &_plane,
                                         const double &_plane_dist );
 
   sensor_msgs::msg::PointCloud2 getPCDHigherThan(const double &_ratio);

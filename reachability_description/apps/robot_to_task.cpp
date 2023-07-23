@@ -1,7 +1,11 @@
 #include <reachability_description/reachability_description.h>
 #include<reachability_msgs/srv/move_robot_to_task.hpp>
 #include <reachability_msgs/srv/set_robot_pose.hpp>
+#include <tf2_eigen_kdl/tf2_eigen_kdl.hpp>
 #include <algorithm>
+
+#include <reachability_description/reach_utilities.h>
+#include <nlopt.h>
 
 using namespace std::chrono_literals;
 
@@ -11,6 +15,73 @@ using namespace std::chrono_literals;
 bool dist_comp ( std::pair<int, double> _i,
                  std::pair<int, double> _j ) {
   return (_i.second < _j.second );
+}
+
+bool samp_comp ( std::pair<int, int> _i,
+                 std::pair<int, int> _j ) {
+  return (_i.second < _j.second );
+}
+
+struct GS
+{
+  Eigen::Isometry3d G;
+  Eigen::Isometry3d S;
+};
+
+double calc_error(Eigen::Isometry3d _S, Eigen::Isometry3d _G, std::vector<double> _x)
+{
+
+  double fx, fy, zx, zy;
+  double G03, G13, G02, G12;
+  double S03, S13, S02, S12;
+
+  G03 = _G.matrix()(0,3);
+  G13 = _G.matrix()(1,3);
+  G02 = _G.matrix()(0,2);
+  G12 = _G.matrix()(1,2);
+  S03 = _S.matrix()(0,3);
+  S13 = _S.matrix()(1,3);
+  S02 = _S.matrix()(0,2);
+  S12 = _S.matrix()(1,2);
+  fx = G03 - _x[0] - cos(_x[2])*S03 - sin(_x[2])*S13;
+  fy = G13 - _x[1] - sin(_x[2])*S03 - cos(_x[2])*S13;
+  zx = G02 - cos(_x[2])*S02 - sin(_x[2])*S12;
+  zy = G12 - sin(_x[2])*S02 - cos(_x[2])*S12;
+
+
+  return (fx*fx + fy*fy + zx*zx  + zy*zy);
+}
+
+double min_func(const std::vector<double> &x, std::vector<double>& grad, void* data)
+{
+  // x
+  // tx = x[0] ty = x[1] theta = x[2]
+  GS* c = (GS*) data;
+
+  Eigen::Isometry3d S, G; // sample and goal
+  S = c->S;
+  G = c->G;
+  std::vector<double> vals(x);
+
+  double jump = FLT_EPSILON;
+  double res = calc_error(S, G, x);
+  
+  if (!grad.empty())
+  {
+    double v1;
+    for (uint i = 0; i < x.size(); i++)
+    {
+      double original = vals[i];
+
+      vals[i] = original + jump;
+      v1 = calc_error(S, G, vals);
+
+      vals[i] = original;
+      grad[i] = (v1 - res) / (2 * jump);
+    }
+  }
+
+  return res;
 }
 
 /**
@@ -25,7 +96,7 @@ class RobotToTask
  nh_(_nh)
  {
     rd_.reset( new reachability_description::ReachabilityDescription(nh_));
-    
+
  }
 
  // Initialize
@@ -34,7 +105,19 @@ class RobotToTask
     if(!rd_->initialize(_robot_name))
         return false;
 
-    above_ratio_ = 0.5;
+    above_ratio_ = 0.35;
+    below_z_comp_ = 0.15; // (nx, ny, nz) vs (mx, my, mz), this factor is diff between nz and mx, at most it can be 2
+
+    opt_ = nlopt::opt(nlopt::LD_SLSQP, 3); // nlopt::LD_SLSQP
+    opt_.set_xtol_abs(0.01);
+    opt_.set_maxtime(0.005);
+    
+    std::vector<double> x_lower_bounds = {-10.0, -10.0, -M_PI};
+    std::vector<double> x_upper_bounds = {10.0, 10.0, M_PI};
+
+    opt_.set_lower_bounds(x_lower_bounds);
+    opt_.set_upper_bounds(x_upper_bounds);
+
 
     return true;
  }
@@ -42,8 +125,12 @@ class RobotToTask
 // Load description
  bool loadDescription(const std::string &_chain_group)
  {
+    chain_group_ = _chain_group;
     if(!rd_->loadDescription(_chain_group))
         return false;
+  
+    rd_->addKinematicSolvers(_chain_group);
+
     return true;
  }
 
@@ -60,12 +147,12 @@ bool setServices()
     client_move_base_ = nh_->create_client<reachability_msgs::srv::SetRobotPose>("set_robot_pose");
 
     // Get the indices of the highest
-    int num = rd_->getReachGraph()->getNumPoints();
+    int num = rd_->getReachGraph(chain_group_)->getNumPoints();
 
     for(int i = 0; i < num; ++i)
     {
-      reachability_msgs::msg::ReachData rdi = rd_->getReachGraph()->getState(i);
-      int min_samples = (int)( above_ratio_ * rd_->getReachGraph()->getNumVoxelSamples() );
+      reachability_msgs::msg::ReachData rdi = rd_->getReachGraph(chain_group_)->getState(i);
+      int min_samples = (int)( above_ratio_ * rd_->getReachGraph(chain_group_)->getNumVoxelSamples() );
       if( rdi.samples.size() > min_samples )
       {
         higher_indices_.push_back( i );
@@ -116,62 +203,119 @@ Eigen::Isometry3d Tfx;
 tf2::fromMsg(req->tcp_poses[0].pose, Tfx);
 double z_task = Tfx.translation()(2);
 
- std::vector<std::pair<int, double> > distances;
+ std::vector<std::pair<int, int> > distances;
  for(int i = 0; i < higher_voxels_.size(); ++i)
  {
     // Only evaluate points that are in front
     double thresh = 0.05;
     double x, y, z;
     int xi, yi, zi;
-    rd_->getReachGraph()->indexToVertex(higher_indices_[i], xi, yi, zi);
-    rd_->getReachGraph()->vertexToWorld(xi, yi, zi, x, y, z);
+    rd_->getReachGraph(chain_group_)->indexToVertex(higher_indices_[i], xi, yi, zi);
+    rd_->getReachGraph(chain_group_)->vertexToWorld(xi, yi, zi, x, y, z);
 
     if(withinZThresh(Tfx, x, y, z, thresh))
-        distances.push_back(std::make_pair(i, 0.0 )); // 0.0 getL2Dist( req->pose, higher_indices_[i] )
+        distances.push_back(std::make_pair(i, higher_voxels_[i].samples.size())); // 0.0 getL2Dist( req->pose, higher_indices_[i] )
  }
 
-    RCLCPP_INFO(nh_->get_logger(), "Poses in thresh: %d ", distances.size());
-
-
-/*
- // Calculate the distance through all the points higher to a point
-
-
- for(int i = 0; i < higher_voxels_.size(); ++i)
- {
-    // Only evaluate points that are in front
-    double thresh = 0.1;
-    double x, y, z;
-    int xi, yi, zi;
-    rd_->getReachGraph()->indexToVertex(higher_indices_[i], xi, yi, zi);
-    rd_->getReachGraph()->vertexToWorld(xi, yi, zi, x, y, z);
-
-    if(aboveYZPlane(Tfx, x, y, z, thresh))
-        distances.push_back(std::make_pair(i, getL2Dist( req->pose, higher_indices_[i] ) ));
- }
-
-    RCLCPP_INFO(rclcpp::get_logger("hand_to_user"), "Poses over the plane: %d ", distances.size());
+  RCLCPP_INFO(nh_->get_logger(), "Poses in thresh: %d ", distances.size());
 
   // Sort
-  std::sort(distances.begin(), distances.end(), dist_comp);
+  std::sort(distances.begin(), distances.end(), samp_comp);
 
-  // For all the survivors, check if there is a direction close to (pose_goal - pose)
-  RCLCPP_INFO(rclcpp::get_logger("hand_to_user"), "Hand to user: end, distances size: %d", distances.size());  
-  
-  sensor_msgs::msg::JointState js;
-  js.name = rd_->getReachGraph()->getChainInfo().joint_names;
-  RCLCPP_INFO(rclcpp::get_logger("hand_to_user"), "hIGHER VOXELS size: %d distances 0 first: %d", higher_voxels_.size(), distances[0].first);
+  // Go through all of them, and check which sample is closer
+  for(int i = 0; i < distances.size(); ++i)
+  {
+    std::vector<geometry_msgs::msg::PoseStamped> sols;
+    std::vector<sensor_msgs::msg::JointState> jjs;
+    if(calculateSolInVoxel(higher_voxels_[ distances[i].first ], Tfx, sols, jjs))
+    {
+      moveBase(sols[0]);
 
-  int index = getSample(higher_voxels_[distances[0].first].samples, Tfx);
-  js.position = higher_voxels_[ distances[0].first ].samples[index].best_config;
-  pub_js_->publish(js);
-*/
+      pub_js_->publish(jjs[0]);
+      res->success = true;
+      return;
 
-//if(!req->tcp_poses.empty())
-//    moveBase(req->tcp_poses[0]);
-
+    }
+  }
 
 }
+
+
+bool calculateSolInVoxel(reachability_msgs::msg::ReachData _rdi, 
+        Eigen::Isometry3d _Tf_goal, 
+        std::vector<geometry_msgs::msg::PoseStamped> &_sols, 
+        std::vector<sensor_msgs::msg::JointState> &_jjs )
+{
+  Eigen::Isometry3d G, S; // sample
+  Eigen::Vector3d z_g;
+
+  G = _Tf_goal; 
+  z_g = G.linear().col(2);
+  
+  int num_sols = 0;
+  double min_dist = 1000;
+  double max_dist = 0;
+  for(int i = 0; i < _rdi.samples.size(); ++i)
+  {
+    Eigen::Vector3d z_s;
+    tf2::fromMsg( _rdi.samples[i].pose, S);
+    z_s = S.linear().col(2); 
+
+    double dist = fabs(z_s(2) - z_g(2)); 
+    if( dist < below_z_comp_ )
+    {
+      num_sols++;
+     
+      double minf;
+      std::vector<double> x = {G.translation()(0) - 1.0, G.translation()(1) - 1.0, 0};
+      GS gs_struct;
+      gs_struct.G = G;
+      gs_struct.S = S;
+      opt_.set_min_objective(min_func, &gs_struct);
+
+      int res;
+      try
+      {
+        res = opt_.optimize(x, minf);
+      }
+      catch (...)
+     {
+     }
+      if(res > 0)
+      {
+        Eigen::Isometry3d Tbase, Texpected;
+        Tbase = getPlanarTransform(x[0], x[1], x[2]);
+        
+        KDL::JntArray q_init, q_out;
+        q_init = vectorToJntArray(_rdi.samples[i].best_config);
+
+        KDL::Twist bounds = KDL::Twist::Zero();
+        Texpected = Tbase.inverse()*G;
+        KDL::Frame p_in;
+        tf2::transformEigenToKDL(Texpected, p_in);
+        int ik_sol = rd_->getIKSolver(chain_group_)->CartToJnt(q_init, p_in, q_out, bounds);
+        if(ik_sol > 0)
+        {
+          geometry_msgs::msg::PoseStamped pi;
+          pi.pose = tf2::toMsg(Tbase);
+          pi.header.frame_id = "world";
+          _sols.push_back(pi);
+
+          sensor_msgs::msg::JointState js;
+          js.name = rd_->getReachGraph(chain_group_)->getChainInfo().joint_names;
+          js.position.resize(js.name.size());
+          for(int k = 0; k < js.name.size(); ++k)
+          js.position[k] = q_out(k);
+          _jjs.push_back(js);
+
+        }
+      }
+    }
+
+  }
+  return (_sols.size() > 0);
+}
+
 
 int getSample(const std::vector<reachability_msgs::msg::ReachSample> &_samples, const Eigen::Isometry3d &_Tfx)
 {
@@ -202,27 +346,6 @@ int getSample(const std::vector<reachability_msgs::msg::ReachSample> &_samples, 
     return min_index;
 }
 
-
-// Helper
-double getL2Dist( geometry_msgs::msg::PoseStamped _pose, int _index)
-{
-    // Get pose
-    double x, y, z;
-    int xi, yi, zi;
-    double dx, dy, dz;
-    rd_->getReachGraph()->indexToVertex(_index, xi, yi, zi);
-    rd_->getReachGraph()->vertexToWorld(xi, yi, zi, x, y, z);
-
-    // Dist
-    dx = _pose.pose.position.x - x;
-    dy = _pose.pose.position.y - y;
-    dz = _pose.pose.position.z - z;
-
-    double dist;
-    dist = sqrt(dx*dx + dy*dy + dz*dz);
-    return dist;
-}
-
  protected:
  rclcpp::Node::SharedPtr nh_;
  std::shared_ptr<reachability_description::ReachabilityDescription> rd_;
@@ -236,6 +359,11 @@ double getL2Dist( geometry_msgs::msg::PoseStamped _pose, int _index)
  std::vector<int> higher_indices_;
  std::vector<reachability_msgs::msg::ReachData> higher_voxels_;
  double above_ratio_;
+ double below_z_comp_ = 0.1;
+ std::string chain_group_;
+
+ nlopt::opt opt_;
+
 };
 
 

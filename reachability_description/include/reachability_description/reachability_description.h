@@ -29,7 +29,6 @@ class ReachabilityDescription
     ~ReachabilityDescription();
 
     bool initialize(const std::string &_robot_name);
-    bool quickTest(const std::string &_chain_group);
     
     bool generateDescription(const std::string &_chain_group);
     bool loadDescription(const std::string &_filename);
@@ -52,10 +51,14 @@ class ReachabilityDescription
                                           const reachability_msgs::msg::ChainInfo &_ci,
                                           const std::shared_ptr<robot_unit::RobotCollisionObject> &_rco);
 
-    bool getReachabilityData(const double &_x, const double &_y, const double &_z, 
+    bool getReachabilityData(const std::string &_chain_group,
+                        const double &_x, const double &_y, const double &_z, 
                          reachability_msgs::msg::ReachData &_data);
     
-    std::shared_ptr<ReachGraph> getReachGraph();
+    std::shared_ptr<ReachGraph> getReachGraph(const std::string &_chain_group);
+    std::shared_ptr<TRAC_IK::TRAC_IK> getIKSolver(const std::string &_chain_group);
+    
+    bool addKinematicSolvers(const std::string &_chain_group);
 
     protected:
 
@@ -67,8 +70,7 @@ class ReachabilityDescription
     std::string generateDefaultReachGroupName(const std::string &_chain_group);
 
     void loadParams(const std::string &_chain_group, 
-                std::shared_ptr<reachability_description_params::ParamListener> _param_listener,
-                reachability_description_params::Params _params);
+                reachability_description_params::Params &_params);
 
     rclcpp::Node::SharedPtr nh_;
 
@@ -77,7 +79,10 @@ class ReachabilityDescription
     std::shared_ptr<RobotEntity> re_;
     std::shared_ptr<robot_unit::RobotCollisionObject> rco_;
 
-    std::shared_ptr<ReachGraph> reach_graph_;
+    std::map<std::string, std::shared_ptr<ReachGraph> > reach_graph_;
+    std::map<std::string, std::shared_ptr<TRAC_IK::TRAC_IK> > ik_solver_;
+    std::map<std::string, reachability_msgs::msg::ChainInfo> chain_info_;
+
     std::string robot_name_;
     std::string urdf_string_;
     std::string srdf_string_;

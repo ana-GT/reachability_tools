@@ -37,6 +37,8 @@ class HandToUser
 // Load description
  bool loadDescription(const std::string &_chain_group)
  {
+    chain_group_ = _chain_group;
+
     if(!rd_->loadDescription(_chain_group))
         return false;
     return true;
@@ -52,13 +54,13 @@ bool setServices()
     pub_js_ = nh_->create_publisher<sensor_msgs::msg::JointState>("joint_state_command", 10);
 
     // Get the indices of the highest
-    int num = rd_->getReachGraph()->getNumPoints();
-    RCLCPP_INFO(rclcpp::get_logger("hand_to_user"), "Start get services... Num points: %d ", num);
+    int num = rd_->getReachGraph(chain_group_)->getNumPoints();
+    RCLCPP_INFO(nh_->get_logger(), "Start get services... Num points: %d ", num);
 
     for(int i = 0; i < num; ++i)
     {
-      reachability_msgs::msg::ReachData rdi = rd_->getReachGraph()->getState(i);
-      int min_samples = (int)( 0.5 * rd_->getReachGraph()->getNumVoxelSamples() );
+      reachability_msgs::msg::ReachData rdi = rd_->getReachGraph(chain_group_)->getState(i);
+      int min_samples = (int)( 0.5 * rd_->getReachGraph(chain_group_)->getNumVoxelSamples() );
       if( rdi.samples.size() > min_samples )
       {
         higher_indices_.push_back( i );
@@ -87,7 +89,7 @@ bool aboveYZPlane(Eigen::Isometry3d _Tfx, double _x, double _y, double _z, doubl
 void handleSrv(const std::shared_ptr<reachability_msgs::srv::GetHandToUser::Request> req,
                std::shared_ptr<reachability_msgs::srv::GetHandToUser::Response> res)
 {
-    RCLCPP_INFO(rclcpp::get_logger("hand_to_user"), "Hand to user: start. Higher voxels size: %d", higher_voxels_.size());
+    RCLCPP_INFO(nh_->get_logger(), "Hand to user: start. Higher voxels size: %d", higher_voxels_.size());
 
  // Calculate the distance through all the points higher to a point
  std::vector<std::pair<int, double> > distances;
@@ -101,24 +103,24 @@ tf2::fromMsg(req->pose.pose, Tfx);
     double thresh = 0.1;
     double x, y, z;
     int xi, yi, zi;
-    rd_->getReachGraph()->indexToVertex(higher_indices_[i], xi, yi, zi);
-    rd_->getReachGraph()->vertexToWorld(xi, yi, zi, x, y, z);
+    rd_->getReachGraph(chain_group_)->indexToVertex(higher_indices_[i], xi, yi, zi);
+    rd_->getReachGraph(chain_group_)->vertexToWorld(xi, yi, zi, x, y, z);
 
     if(aboveYZPlane(Tfx, x, y, z, thresh))
         distances.push_back(std::make_pair(i, getL2Dist( req->pose, higher_indices_[i] ) ));
  }
 
-    RCLCPP_INFO(rclcpp::get_logger("hand_to_user"), "Poses over the plane: %d ", distances.size());
+    RCLCPP_INFO(nh_->get_logger(), "Poses over the plane: %d ", distances.size());
 
   // Sort
   std::sort(distances.begin(), distances.end(), dist_comp);
 
   // For all the survivors, check if there is a direction close to (pose_goal - pose)
-  RCLCPP_INFO(rclcpp::get_logger("hand_to_user"), "Hand to user: end, distances size: %d", distances.size());  
+  RCLCPP_INFO(nh_->get_logger(), "Hand to user: end, distances size: %d", distances.size());  
   
   sensor_msgs::msg::JointState js;
-  js.name = rd_->getReachGraph()->getChainInfo().joint_names;
-  RCLCPP_INFO(rclcpp::get_logger("hand_to_user"), "hIGHER VOXELS size: %d distances 0 first: %d", higher_voxels_.size(), distances[0].first);
+  js.name = rd_->getReachGraph(chain_group_)->getChainInfo().joint_names;
+  RCLCPP_INFO(nh_->get_logger(), "hIGHER VOXELS size: %d distances 0 first: %d", higher_voxels_.size(), distances[0].first);
 
   int index = getSample(higher_voxels_[distances[0].first].samples, Tfx);
   js.position = higher_voxels_[ distances[0].first ].samples[index].best_config;
@@ -163,8 +165,8 @@ double getL2Dist( geometry_msgs::msg::PoseStamped _pose, int _index)
     double x, y, z;
     int xi, yi, zi;
     double dx, dy, dz;
-    rd_->getReachGraph()->indexToVertex(_index, xi, yi, zi);
-    rd_->getReachGraph()->vertexToWorld(xi, yi, zi, x, y, z);
+    rd_->getReachGraph(chain_group_)->indexToVertex(_index, xi, yi, zi);
+    rd_->getReachGraph(chain_group_)->vertexToWorld(xi, yi, zi, x, y, z);
 
     // Dist
     dx = _pose.pose.position.x - x;
@@ -185,7 +187,7 @@ double getL2Dist( geometry_msgs::msg::PoseStamped _pose, int _index)
 
  std::vector<int> higher_indices_;
  std::vector<reachability_msgs::msg::ReachData> higher_voxels_;
-
+ std::string chain_group_;
 };
 
 

@@ -32,7 +32,10 @@ set(REACH_PARAM_LIB reachability_description_parameters)
 generate_parameter_library(${REACH_PARAM_LIB} src/reachability_description_parameters.yaml)
 
 set(linked_fcl_libs /home/ana/local/lib/libfcl.so;/usr/lib/x86_64-linux-gnu/libccd.so;/usr/lib/x86_64-linux-gnu/libm.so;/opt/ros/galactic/lib/liboctomap.so;/opt/ros/galactic/lib/liboctomath.so)
-add_library(${PROJECT_NAME} SHARED src/reachability_description.cpp src/reach_data.cpp src/reach_serialization.cpp)
+add_library(${PROJECT_NAME} SHARED 
+            src/reachability_description.cpp 
+            src/reach_data.cpp src/reach_serialization.cpp
+            src/reach_utilities.cpp)
 target_link_libraries(${PROJECT_NAME} ${linked_fcl_libs} ${REACH_PARAM_LIB})
 ament_target_dependencies( ${PROJECT_NAME} ${DEPS})
 

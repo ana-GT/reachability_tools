@@ -246,12 +246,10 @@ void fillNormal(const std::string &_plane,
 /**
  * @function getPCD
  */
-sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( const uint8_t &_state, 
-                                                  int _r, int _g, int _b,
-                                                  const std::string &_plane,
+sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( const std::string &_plane,
                                                   const double &_plane_dist )
 {
-  RCLCPP_WARN(rclcpp::get_logger("getPCD"), "Plane type: %s dist: %f ", _plane.c_str(), _plane_dist);
+  RCLCPP_WARN(rclcpp::get_logger("ReachGraph"), "Plane type: %s dist: %f ", _plane.c_str(), _plane_dist);
   reachability_msgs::msg::ReachData *v;
   v = &points_[0];
   
@@ -267,7 +265,7 @@ sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( const uint8_t &_state,
   // Get how many obstacle vertices there are in the graph
   int count = 0;
   for( int i = 0; i < num_points_; ++i ) {
-    if( v->state == _state ) {
+    if( v->state == reachability_msgs::msg::ReachData::FILLED ) {
 
       indexToVertex( i, xi, yi, zi );
       vertexToWorld( xi, yi, zi, x, y, z );
@@ -283,7 +281,7 @@ sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( const uint8_t &_state,
     v++;
   }
 
-  RCLCPP_WARN(rclcpp::get_logger("getPCD"), "NUmber of solutions range from %d to %d ", min_sols, max_sols);
+  RCLCPP_WARN(rclcpp::get_logger("getPCD"), "Number of solutions range from %d to %d ", min_sols, max_sols);
 
   sensor_msgs::msg::PointCloud2 cloud;
 
@@ -308,7 +306,7 @@ sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( const uint8_t &_state,
   v = &points_[0];
 
   for( int i = 0; i < num_points_; ++i ) {
-    if( v->state == _state ) {
+    if( v->state == reachability_msgs::msg::ReachData::FILLED ) {
 
       indexToVertex( i, xi, yi, zi );
       vertexToWorld( xi, yi, zi, x, y, z );
