@@ -1,5 +1,5 @@
 #include <robot_unit/fast_common.h>
-#include <tf2_eigen/tf2_eigen.h>
+#include <tf2_eigen/tf2_eigen.hpp>
 
 CollisionGeometryData::CollisionGeometryData() :
   shape_index_(0)

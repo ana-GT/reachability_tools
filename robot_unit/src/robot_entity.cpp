@@ -33,7 +33,7 @@ bool RobotEntity::init(const std::string &_urdf_string,
 
   if (srdf_model_->initString(*urdf_, _srdf_string))
   {
-      std::vector<srdf::Model::DisabledCollision> ignored = srdf_model_->getDisabledCollisionPairs();
+      std::vector<srdf::Model::CollisionPair> ignored = srdf_model_->getDisabledCollisionPairs();
       for (auto ign : ignored)
         srdf_disabled_coll_pairs_.push_back(std::pair<std::string, std::string>(ign.link1_, ign.link2_));
   }

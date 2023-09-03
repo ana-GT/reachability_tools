@@ -2,6 +2,7 @@
 
 #include <map>
 #include <vector>
+#include <string>
 
 namespace robot_unit
 {

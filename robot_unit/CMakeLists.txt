@@ -18,18 +18,16 @@ set(DEPS
     tf2_kdl
     tf2_eigen_kdl
     reachability_msgs
+    fcl
 )
 
 foreach(dependency IN ITEMS ${DEPS})
   find_package(${dependency} REQUIRED)
 endforeach()
 
-find_package(PkgConfig)
-pkg_check_modules(pkg_fcl REQUIRED fcl>=0.6)
 
 include_directories(
   include
-  ${pkg_fcl_INCLUDE_DIRS}
 )
 
 add_library(treefksolverpos_recursive SHARED src/treefksolverpos_recursive.cpp)
@@ -45,8 +43,7 @@ add_library(${PROJECT_NAME} SHARED
   src/fast_allowed_collision_matrix.cpp
 )
 
-set(linked_fcl_libs /home/ana/local/lib/libfcl.so;/usr/lib/x86_64-linux-gnu/libccd.so;/usr/lib/x86_64-linux-gnu/libm.so;/opt/ros/galactic/lib/liboctomap.so;/opt/ros/galactic/lib/liboctomath.so)
-target_link_libraries(${PROJECT_NAME} treefksolverpos_recursive ${linked_fcl_libs})
+target_link_libraries(${PROJECT_NAME} treefksolverpos_recursive)
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
@@ -98,7 +95,6 @@ ament_export_dependencies(
 
 ament_export_include_directories(
   include
-  ${pkg_fcl_INCLUDE_DIRS}
 )
 
 

@@ -16,7 +16,7 @@
 #include <reachability_msgs/msg/reach_params.hpp>
 #include <reachability_msgs/msg/reach_graph.hpp>
 #include <reachability_msgs/msg/reach_data.hpp>
-#include <tf2_eigen/tf2_eigen.h>
+#include <tf2_eigen/tf2_eigen.hpp>
 
 namespace reachability_description
 {

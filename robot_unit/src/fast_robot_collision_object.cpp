@@ -2,8 +2,8 @@
  * @file fast_robot_collision_object.cpp
  */
 #include <robot_unit/fast_robot_collision_object.h>
-#include <tf2_eigen/tf2_eigen.h>
-#include <tf2_kdl/tf2_kdl.h>
+#include <tf2_eigen/tf2_eigen.hpp>
+#include <tf2_kdl/tf2_kdl.hpp>
 #include <tf2_eigen_kdl/tf2_eigen_kdl.hpp>
 
 using namespace robot_unit;

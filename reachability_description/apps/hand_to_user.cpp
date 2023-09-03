@@ -89,7 +89,7 @@ bool aboveYZPlane(Eigen::Isometry3d _Tfx, double _x, double _y, double _z, doubl
 void handleSrv(const std::shared_ptr<reachability_msgs::srv::GetHandToUser::Request> req,
                std::shared_ptr<reachability_msgs::srv::GetHandToUser::Response> res)
 {
-    RCLCPP_INFO(nh_->get_logger(), "Hand to user: start. Higher voxels size: %d", higher_voxels_.size());
+    RCLCPP_INFO(nh_->get_logger(), "Hand to user: start. Higher voxels size: %ld", higher_voxels_.size());
 
  // Calculate the distance through all the points higher to a point
  std::vector<std::pair<int, double> > distances;
@@ -110,17 +110,17 @@ tf2::fromMsg(req->pose.pose, Tfx);
         distances.push_back(std::make_pair(i, getL2Dist( req->pose, higher_indices_[i] ) ));
  }
 
-    RCLCPP_INFO(nh_->get_logger(), "Poses over the plane: %d ", distances.size());
+    RCLCPP_INFO(nh_->get_logger(), "Poses over the plane: %ld ", distances.size());
 
   // Sort
   std::sort(distances.begin(), distances.end(), dist_comp);
 
   // For all the survivors, check if there is a direction close to (pose_goal - pose)
-  RCLCPP_INFO(nh_->get_logger(), "Hand to user: end, distances size: %d", distances.size());  
+  RCLCPP_INFO(nh_->get_logger(), "Hand to user: end, distances size: %ld", distances.size());  
   
   sensor_msgs::msg::JointState js;
   js.name = rd_->getReachGraph(chain_group_)->getChainInfo().joint_names;
-  RCLCPP_INFO(nh_->get_logger(), "hIGHER VOXELS size: %d distances 0 first: %d", higher_voxels_.size(), distances[0].first);
+  RCLCPP_INFO(nh_->get_logger(), "hIGHER VOXELS size: %ld distances 0 first: %d", higher_voxels_.size(), distances[0].first);
 
   int index = getSample(higher_voxels_[distances[0].first].samples, Tfx);
   js.position = higher_voxels_[ distances[0].first ].samples[index].best_config;
