@@ -14,7 +14,7 @@ int main(int argc, char* argv[])
     {
         qs.clear();
         qs = td.generateQuaternions(i);
-        printf("Num of points for discretization: %d : %d \n", i, qs.size());
+        printf("Num of points for discretization: %d : %ld \n", i, qs.size());
     }
 
     // Store

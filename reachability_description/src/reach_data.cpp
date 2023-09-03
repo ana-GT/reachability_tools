@@ -5,6 +5,7 @@
  */
 #include <reachability_description/reach_data.h>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
+#include <reachability_description/quaternion_discretization.h>
 
 using namespace reachability_description;
 
@@ -78,7 +79,7 @@ ReachGraph::ReachGraph(const reachability_msgs::msg::ReachGraph &_msg)
 
  if(_msg.points.size() != num_points_)
  {
-   RCLCPP_ERROR(rclcpp::get_logger("ReachGraph"), "Loaded reachability does not match: %ld vs %ld ", _msg.points.size(), num_points_); 
+   RCLCPP_ERROR(rclcpp::get_logger("ReachGraph"), "Loaded reachability does not match: %ld vs %d ", _msg.points.size(), num_points_); 
    return;
  } 
    RCLCPP_INFO(rclcpp::get_logger("ReachGraph"), "Loading %ld points ", _msg.points.size());   
@@ -506,6 +507,47 @@ void ReachGraph::createSphereSamplesVoxel(const int &_xi,
 
    _frames.push_back(p);
 
+  }
+
+}
+
+/**
+ * @brief createTesseractSamples
+ */
+void ReachGraph::createTesseractSamples(const int &_xi, 
+                                        const int &_yi, 
+                                        const int &_zi,
+                                        std::vector<Eigen::Isometry3d> &_frames) const
+{
+  _frames.clear();
+
+  double x, y, z;
+  double dx, dy, dz;
+
+  vertexToWorld(_xi, _yi, _zi, x, y, z);
+
+  int N = params_.num_voxel_samples;
+
+  int n = 1;
+  // 1. Create the quaternion samples
+  if(N == 40)
+    n = 1;
+  else if(N == 272)
+    n = 2;
+  else
+    printf("Num samples is not either 40 or 272!!!! \n");
+  
+  std::vector<Eigen::Quaterniond> qs;
+  TesseractDiscretization td;
+  qs = td.generateQuaternions(n);
+  
+  for(int k = 0; k < N; ++k)
+  {
+   Eigen::Isometry3d p; p.setIdentity();
+   p.translation() = Eigen::Vector3d(x, y, z);
+   p.linear() = qs[k].toRotationMatrix();
+
+   _frames.push_back(p);
   }
 
 }

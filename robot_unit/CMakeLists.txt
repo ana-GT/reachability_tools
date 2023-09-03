@@ -18,16 +18,27 @@ set(DEPS
     tf2_kdl
     tf2_eigen_kdl
     reachability_msgs
-    fcl
 )
 
 foreach(dependency IN ITEMS ${DEPS})
   find_package(${dependency} REQUIRED)
 endforeach()
 
+# FCL
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBFCL REQUIRED "fcl>=0.5.0")
+# replace LIBFCL_LIBRARIES with full paths to the libraries
+set(LIBFCL_LIBRARIES_FULL "")
+foreach(LIBFCL_LIBRARY ${LIBFCL_LIBRARIES})
+  find_library(${LIBFCL_LIBRARY}_LIB ${LIBFCL_LIBRARY} ${LIBFCL_LIBRARY_DIRS})
+  list(APPEND LIBFCL_LIBRARIES_FULL ${${LIBFCL_LIBRARY}_LIB})
+endforeach()
+set(LIBFCL_LIBRARIES "${LIBFCL_LIBRARIES_FULL}")
+
 
 include_directories(
   include
+  ${LIBFCL_INCLUDE_DIRS}
 )
 
 add_library(treefksolverpos_recursive SHARED src/treefksolverpos_recursive.cpp)
@@ -48,7 +59,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
   )
-ament_target_dependencies( ${PROJECT_NAME} ${DEPS})
+ament_target_dependencies( ${PROJECT_NAME} ${DEPS} LIBFCL)
 
 ############# Tests ###############
 #add_executable(test_env_collision tests/test_env_collision.cpp)

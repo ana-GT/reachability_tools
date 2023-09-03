@@ -25,6 +25,18 @@ endforeach()
 
 find_package(Eigen3 REQUIRED NO_MODULE)
 
+# FCL
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBFCL REQUIRED "fcl>=0.5.0")
+# replace LIBFCL_LIBRARIES with full paths to the libraries
+set(LIBFCL_LIBRARIES_FULL "")
+foreach(LIBFCL_LIBRARY ${LIBFCL_LIBRARIES})
+  find_library(${LIBFCL_LIBRARY}_LIB ${LIBFCL_LIBRARY} ${LIBFCL_LIBRARY_DIRS})
+  list(APPEND LIBFCL_LIBRARIES_FULL ${${LIBFCL_LIBRARY}_LIB})
+endforeach()
+set(LIBFCL_LIBRARIES "${LIBFCL_LIBRARIES_FULL}")
+
+
 include_directories(
   include
   ${PCL_INCLUDE_DIRS}  
@@ -34,13 +46,15 @@ include_directories(
 set(REACH_PARAM_LIB reachability_description_parameters)
 generate_parameter_library(${REACH_PARAM_LIB} src/reachability_description_parameters.yaml)
 
-#set(linked_fcl_libs /home/ana/local/lib/libfcl.so;/usr/lib/x86_64-linux-gnu/libccd.so;/usr/lib/x86_64-linux-gnu/libm.so;/opt/ros/galactic/lib/liboctomap.so;/opt/ros/galactic/lib/liboctomath.so)
+add_library(quaternion_discretization src/quaternion_discretization.cpp)
+target_link_libraries(quaternion_discretization Eigen3::Eigen)
+
 add_library(${PROJECT_NAME} SHARED 
             src/reachability_description.cpp 
             src/reach_data.cpp src/reach_serialization.cpp
             src/reach_utilities.cpp)
-target_link_libraries(${PROJECT_NAME} ${REACH_PARAM_LIB}) # ${linked_fcl_libs}
-ament_target_dependencies( ${PROJECT_NAME} ${DEPS})
+target_link_libraries(${PROJECT_NAME} ${REACH_PARAM_LIB} quaternion_discretization)
+ament_target_dependencies( ${PROJECT_NAME} ${DEPS} LIBFCL)
 
 add_executable(generate_reachability_node src/generate_reachability_node.cpp)
 target_link_libraries(generate_reachability_node ${PROJECT_NAME})
@@ -54,29 +68,25 @@ add_executable(estimate_reachability_limits_node src/estimate_reachability_limit
 target_link_libraries(estimate_reachability_limits_node ${PROJECT_NAME})
 ament_target_dependencies(estimate_reachability_limits_node ${DEPS})
 
-add_library(quaternion_discretization src/quaternion_discretization.cpp)
-target_link_libraries(quaternion_discretization Eigen3::Eigen)
-
 add_executable( test_cube_discretization apps/test_cube_discretization.cpp)
 target_link_libraries(test_cube_discretization quaternion_discretization)
 
 add_executable( test_tesseract_discretization apps/test_tesseract_discretization.cpp)
 target_link_libraries(test_tesseract_discretization quaternion_discretization)
 
-
 ##########
 ## Apps
-#add_executable(app_hand_to_user apps/hand_to_user.cpp)
-#target_link_libraries(app_hand_to_user ${PROJECT_NAME})
-#ament_target_dependencies(app_hand_to_user ${DEPS})
+add_executable(app_hand_to_user apps/hand_to_user.cpp)
+target_link_libraries(app_hand_to_user ${PROJECT_NAME})
+ament_target_dependencies(app_hand_to_user ${DEPS})
 
-#add_executable(app_robot_to_task apps/robot_to_task.cpp)
-#target_link_libraries(app_robot_to_task ${PROJECT_NAME})
-#ament_target_dependencies(app_robot_to_task ${DEPS})
+add_executable(app_robot_to_task apps/robot_to_task.cpp)
+target_link_libraries(app_robot_to_task ${PROJECT_NAME})
+ament_target_dependencies(app_robot_to_task ${DEPS})
 
-#add_executable(app_simulate_robot_base_motion apps/simulate_robot_base_motion.cpp)
-#target_link_libraries(app_simulate_robot_base_motion ${PROJECT_NAME})
-#ament_target_dependencies(app_simulate_robot_base_motion ${DEPS})
+add_executable(app_simulate_robot_base_motion apps/simulate_robot_base_motion.cpp)
+target_link_libraries(app_simulate_robot_base_motion ${PROJECT_NAME})
+ament_target_dependencies(app_simulate_robot_base_motion ${DEPS})
 
 install(
   DIRECTORY include/
@@ -85,12 +95,13 @@ install(
 
 install(TARGETS ${PROJECT_NAME} 
   ${REACH_PARAM_LIB}
+  quaternion_discretization
   generate_reachability_node  
   load_reachability_node 
   estimate_reachability_limits_node
-#  app_hand_to_user
-#  app_simulate_robot_base_motion
-#  app_robot_to_task
+  app_hand_to_user
+  app_simulate_robot_base_motion
+  app_robot_to_task
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib

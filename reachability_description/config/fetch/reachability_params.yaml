@@ -4,7 +4,7 @@ arm_with_torso:
   ik_epsilon: 0.00001
   
   voxel_resolution: 0.05
-  voxel_num_samples: 32
+  voxel_num_samples: 40 # 40, 272
 
 
   x_min: -0.65

@@ -57,6 +57,11 @@ class ReachGraph {
                                 const int &zi,
                                 std::vector<Eigen::Isometry3d> &_frames) const;
 
+  void createTesseractSamples(const int &_xi, 
+                              const int &_yi, 
+                              const int &_zi,
+                              std::vector<Eigen::Isometry3d> &_frames) const;
+
   sensor_msgs::msg::PointCloud2 getPCD( const std::string &_plane,
                                         const double &_plane_dist );
 

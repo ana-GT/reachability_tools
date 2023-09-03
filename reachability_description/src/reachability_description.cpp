@@ -165,8 +165,8 @@ reachability_msgs::msg::ReachData ReachabilityDescription::fillData(const std::s
   reachability_msgs::msg::ReachData rdata;
 
   std::vector<Eigen::Isometry3d> frames; 
-  _reach_graph->createSphereSamplesVoxel(_xi, _yi, _zi, frames);
-
+  //_reach_graph->createSphereSamplesVoxel(_xi, _yi, _zi, frames);
+  _reach_graph->createTesseractSamples(_xi, _yi, _zi, frames);
 
   for(auto frame_i : frames)
   {
@@ -399,7 +399,7 @@ bool ReachabilityDescription::getReachabilityData(const std::string &_chain_grou
     return false;
 
   reachability_msgs::msg::ReachData rdata = reach_graph_[_chain_group]->getState(xi, yi, zi);
-  RCLCPP_WARN(nh_->get_logger(), "Got reachability data: from %f %f %f to %d %d %d, samples: %d", 
+  RCLCPP_WARN(nh_->get_logger(), "Got reachability data: from %f %f %f to %d %d %d, samples: %ld", 
               _x, _y, _z, xi, yi, zi, rdata.samples.size());
 
   _data = rdata;
