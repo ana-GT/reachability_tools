@@ -23,9 +23,12 @@ foreach(dependency IN ITEMS ${DEPS})
   find_package(${dependency} REQUIRED)
 endforeach()
 
+find_package(Eigen3 REQUIRED NO_MODULE)
+
 include_directories(
   include
   ${PCL_INCLUDE_DIRS}  
+  ${Eigen3_INCLUDE_DIRS}
 )
 
 set(REACH_PARAM_LIB reachability_description_parameters)
@@ -50,6 +53,16 @@ ament_target_dependencies(load_reachability_node ${DEPS})
 add_executable(estimate_reachability_limits_node src/estimate_reachability_limits_node.cpp)
 target_link_libraries(estimate_reachability_limits_node ${PROJECT_NAME})
 ament_target_dependencies(estimate_reachability_limits_node ${DEPS})
+
+add_library(quaternion_discretization src/quaternion_discretization.cpp)
+target_link_libraries(quaternion_discretization Eigen3::Eigen)
+
+add_executable( test_cube_discretization apps/test_cube_discretization.cpp)
+target_link_libraries(test_cube_discretization quaternion_discretization)
+
+add_executable( test_tesseract_discretization apps/test_tesseract_discretization.cpp)
+target_link_libraries(test_tesseract_discretization quaternion_discretization)
+
 
 ##########
 ## Apps
