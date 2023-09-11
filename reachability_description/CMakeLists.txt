@@ -36,11 +36,14 @@ foreach(LIBFCL_LIBRARY ${LIBFCL_LIBRARIES})
 endforeach()
 set(LIBFCL_LIBRARIES "${LIBFCL_LIBRARIES_FULL}")
 
+# Find
+find_package(OpenCV REQUIRED)
 
 include_directories(
   include
   ${PCL_INCLUDE_DIRS}  
   ${Eigen3_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
 )
 
 set(REACH_PARAM_LIB reachability_description_parameters)
@@ -56,6 +59,12 @@ add_library(${PROJECT_NAME} SHARED
 target_link_libraries(${PROJECT_NAME} ${REACH_PARAM_LIB} quaternion_discretization)
 ament_target_dependencies( ${PROJECT_NAME} ${DEPS} LIBFCL)
 
+add_library(reach_graph_aggregated src/reach_graph_aggregated.cpp)
+target_link_libraries(reach_graph_aggregated ${PROJECT_NAME} ${OpenCV_LIBRARIES})
+
+
+##############################################################################
+# Utilities to generate, load, estimate reachability data
 add_executable(generate_reachability_node src/generate_reachability_node.cpp)
 target_link_libraries(generate_reachability_node ${PROJECT_NAME})
 ament_target_dependencies(generate_reachability_node ${DEPS})
@@ -84,6 +93,11 @@ add_executable(app_robot_to_task apps/robot_to_task.cpp)
 target_link_libraries(app_robot_to_task ${PROJECT_NAME})
 ament_target_dependencies(app_robot_to_task ${DEPS})
 
+add_executable(app_robot_to_task_2 apps/robot_to_task_2.cpp)
+target_link_libraries(app_robot_to_task_2 reach_graph_aggregated ${PROJECT_NAME})
+ament_target_dependencies(app_robot_to_task_2 ${DEPS})
+
+
 add_executable(app_simulate_robot_base_motion apps/simulate_robot_base_motion.cpp)
 target_link_libraries(app_simulate_robot_base_motion ${PROJECT_NAME})
 ament_target_dependencies(app_simulate_robot_base_motion ${DEPS})
@@ -95,6 +109,7 @@ install(
 
 install(TARGETS ${PROJECT_NAME} 
   ${REACH_PARAM_LIB}
+  reach_graph_aggregated
   quaternion_discretization
   generate_reachability_node  
   load_reachability_node 
@@ -102,6 +117,7 @@ install(TARGETS ${PROJECT_NAME}
   app_hand_to_user
   app_simulate_robot_base_motion
   app_robot_to_task
+  app_robot_to_task_2
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib

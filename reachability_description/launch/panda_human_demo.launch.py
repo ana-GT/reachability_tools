@@ -56,8 +56,8 @@ def generate_launch_description():
 
     # Human marker
     human_marker = Node(
-        package='jose',
-        executable='jose_markers_node',
+        package='task_ui',
+        executable='task_ui_markers_node',
         output='screen',
         parameters=[
             {"group": "panda_manipulator"},

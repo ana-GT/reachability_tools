@@ -1,0 +1,2 @@
+geometry_msgs/PoseStamped base_pose
+sensor_msgs/JointState chain_config

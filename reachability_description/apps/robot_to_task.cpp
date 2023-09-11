@@ -171,7 +171,8 @@ bool withinZThresh(Eigen::Isometry3d _Tfx, double _x, double _y, double _z, doub
 // Move base
 void moveBase(const geometry_msgs::msg::PoseStamped &_pose)
 {
-  RCLCPP_WARN(nh_->get_logger(), "Move base received request to move to %f %f %f ", _pose.pose.position.x, _pose.pose.position.y, _pose.pose.position.z);
+  RCLCPP_WARN(nh_->get_logger(), "Move base received request to move to %f %f %f ", 
+              _pose.pose.position.x, _pose.pose.position.y, _pose.pose.position.z);
   auto request = std::make_shared<reachability_msgs::srv::SetRobotPose::Request>();
   request->pose = _pose;
 
@@ -240,7 +241,9 @@ double z_task = Tfx.translation()(2);
 
 }
 
-
+/**
+ * @function calculateSolInVoxel 
+ */
 bool calculateSolInVoxel(reachability_msgs::msg::ReachData _rdi, 
         Eigen::Isometry3d _Tf_goal, 
         std::vector<geometry_msgs::msg::PoseStamped> &_sols, 

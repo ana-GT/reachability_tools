@@ -1,4 +1,5 @@
 geometry_msgs/PoseStamped[] tcp_poses
+int64 num_robot_placements
 ---
 bool success
-geometry_msgs/PoseStamped[] robot_poses
+reachability_msgs/PlaceRobotSolution[] solutions

@@ -68,8 +68,8 @@ def generate_launch_description():
 
     # markers
     task_marker = Node(
-        package='jose',
-        executable='robot_to_task_markers_node',
+        package='task_ui',
+        executable='robot_task_markers_node',
         output='screen',
         parameters=[
             {"group": "arm_torso"},
@@ -80,7 +80,7 @@ def generate_launch_description():
     # Robot to task
     app_robot_to_task = Node(
         package='reachability_description',
-        executable='app_robot_to_task',
+        executable='app_robot_to_task_2',
         output='screen',
         parameters=[
             reachability_params,

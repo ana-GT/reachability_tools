@@ -42,27 +42,35 @@ def generate_launch_description():
         'robot_description_semantic': srdf_config
     }
 
+    # Robot task UI Params
+    rtu_yaml = load_yaml(
+        "task_ui", "config/fetch_robot_task.yaml"
+    )
+    rtu_params = {"robot_task_ui_params": rtu_yaml}
+
+    # Robot task UI node
+    task_marker = Node(
+        package='task_ui',
+        executable='robot_task_markers_node',
+        output='screen',
+        parameters=[
+            {"group": "arm_with_torso"},
+            {"robot_name": "fetch"},
+            rtu_params
+        ]
+    )    
+
     # Reach parameters
     reachability_yaml = load_yaml(
         "reachability_description", "config/fetch/reachability_params.yaml"
     )
     reachability_params = {"reachability_params": reachability_yaml}
 
-    # markers
-    task_marker = Node(
-        package='jose',
-        executable='robot_to_task_markers_node',
-        output='screen',
-        parameters=[
-            {"group": "arm_with_torso"},
-            {"robot_name": "fetch"}
-        ]
-    )    
 
     # Robot to task
     app_robot_to_task = Node(
         package='reachability_description',
-        executable='app_robot_to_task',
+        executable='app_robot_to_task_2',
         output='screen',
         parameters=[
             reachability_params,

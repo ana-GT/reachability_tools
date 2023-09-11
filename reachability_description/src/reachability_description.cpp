@@ -165,8 +165,8 @@ reachability_msgs::msg::ReachData ReachabilityDescription::fillData(const std::s
   reachability_msgs::msg::ReachData rdata;
 
   std::vector<Eigen::Isometry3d> frames; 
-  //_reach_graph->createSphereSamplesVoxel(_xi, _yi, _zi, frames);
-  _reach_graph->createTesseractSamples(_xi, _yi, _zi, frames);
+  _reach_graph->createSphereSamplesVoxel(_xi, _yi, _zi, frames);
+  //_reach_graph->createTesseractSamples(_xi, _yi, _zi, frames);
 
   for(auto frame_i : frames)
   {
