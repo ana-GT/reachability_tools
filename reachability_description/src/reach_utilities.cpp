@@ -1,6 +1,22 @@
 
 #include <reachability_description/reach_utilities.h>
 
+/**
+ * @function stringToTYpe 
+ */
+TRAC_IK::SolveType stringToType(const std::string &_str)
+{
+  if(_str == "distance")
+    return TRAC_IK::SolveType::Distance;
+  else if(_str == "manip1")
+    return TRAC_IK::SolveType::Manip1;
+  else if(_str == "manip2")
+    return TRAC_IK::SolveType::Manip2;
+  else if(_str == "speed")
+    return TRAC_IK::SolveType::Speed;
+  else
+    return TRAC_IK::SolveType::Distance;
+}
 
 /**
  * @brief Create a KDL frame 
@@ -52,4 +68,19 @@ Eigen::Isometry3d getPlanarTransform(const double &_x, const double &_y, const d
   Tf.linear() = rot;
 
   return Tf;
+}
+
+/**
+ * @function jntArrayToMsg 
+ */
+sensor_msgs::msg::JointState jntArrayToMsg(const KDL::JntArray &_q, 
+                                           const reachability_msgs::msg::ChainInfo &_ci)
+{
+  sensor_msgs::msg::JointState js;
+  js.name = _ci.joint_names;
+  js.position.resize(_ci.num_joints);
+  for(int i = 0; i < js.position.size(); ++i)
+    js.position[i] = _q(i);
+
+  return js;
 }

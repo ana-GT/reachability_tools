@@ -40,7 +40,10 @@ class ReachabilityDescription
     void reach_calc( const double &_min_x, const double &_min_y, const double &_min_z,
                      const double &_max_x, const double &_max_y, const double &_max_z,
                      const reachability_msgs::msg::ChainInfo &_ci,
-                     const double &_ik_max_time, const double &_ik_epsilon, const TRAC_IK::SolveType &_ik_type);
+                     const double &_ik_max_time, const double &_ik_epsilon, 
+                     const TRAC_IK::SolveType &_ik_type,
+                     const std::map<std::string, KDL::JntArray> &_joint_configs,
+                     const std::map<std::string, KDL::Frame> &_fk_poses);
 
 
     void estimateReachLimits(const std::string &_chain_group);
@@ -49,16 +52,23 @@ class ReachabilityDescription
                                           int _xi, int _yi, int _zi,
                                           const std::shared_ptr<TRAC_IK::TRAC_IK> &_ik_solver,
                                           const reachability_msgs::msg::ChainInfo &_ci,
-                                          const std::shared_ptr<robot_unit::RobotCollisionObject> &_rco);
+                                          const std::shared_ptr<robot_unit::RobotCollisionObject> &_rco,
+                                          const KDL::JntArray &_q_init);
 
     bool getReachabilityData(const std::string &_chain_group,
                         const double &_x, const double &_y, const double &_z, 
                          reachability_msgs::msg::ReachData &_data);
-    
+    bool getChainInfo(const std::string &_chain_group,
+                     reachability_msgs::msg::ChainInfo &_chain_info);
     std::shared_ptr<ReachGraph> getReachGraph(const std::string &_chain_group);
     std::shared_ptr<TRAC_IK::TRAC_IK> getIKSolver(const std::string &_chain_group);
-    
+    std::vector<std::pair<double, double>> getJointLimits(const std::string &_chain_group);
+    bool isSelfColliding(const sensor_msgs::msg::JointState &_js);
+ 
     bool addKinematicSolvers(const std::string &_chain_group);
+    KDL::JntArray  getClosestJointConfig(const double &_xi, const double &_yi, const double &_zi, 
+                                     const std::map<std::string, KDL::JntArray> &_joint_configs, 
+                                     const std::map<std::string, KDL::Frame> &_fk_poses);
 
     protected:
 
@@ -72,6 +82,7 @@ class ReachabilityDescription
     void loadParams(const std::string &_chain_group, 
                 reachability_description_params::Params &_params);
 
+
     rclcpp::Node::SharedPtr nh_;
 
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_reach_;
@@ -81,7 +92,9 @@ class ReachabilityDescription
 
     std::map<std::string, std::shared_ptr<ReachGraph> > reach_graph_;
     std::map<std::string, std::shared_ptr<TRAC_IK::TRAC_IK> > ik_solver_;
+    std::map<std::string, std::shared_ptr<KDL::ChainFkSolverPos_recursive> > fk_solver_;
     std::map<std::string, reachability_msgs::msg::ChainInfo> chain_info_;
+    std::map<std::string, std::vector<std::pair<double, double>> > joint_limits_;
 
     std::string robot_name_;
     std::string urdf_string_;

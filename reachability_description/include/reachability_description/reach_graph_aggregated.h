@@ -67,7 +67,7 @@ class ReachGraphAggregated
   public:
   ReachGraphAggregated();
   void reset();
-  void fillFromGraph(const std::shared_ptr<reachability_description::ReachabilityDescription> &_rd, 
+  bool fillFromGraph(const std::shared_ptr<reachability_description::ReachabilityDescription> &_rd, 
                      const std::string &_chain_group);
   bool getCandidates(const Eigen::Isometry3d &_Tg, 
                     std::vector<PlaceSol> &_candidates,
@@ -89,6 +89,12 @@ class ReachGraphAggregated
                                  const std::vector<Sample> &_samples,
                                  const int &_num_clusters);
 
+  // Helpers
+  bool simpleYawSearch(const Eigen::Isometry3d &_Tg,
+                     PlaceSol &_candidate, 
+                     const Sample &_sample);
+  double jointRangeMetric(const KDL::JntArray &_q);                   
+
   protected:
 
   std::vector< std::vector<Sample> > samples_;
@@ -96,7 +102,12 @@ class ReachGraphAggregated
   int min_voxel_samples_;
   int max_voxel_samples_;
   std::string chain_group_;
+  reachability_msgs::msg::ChainInfo chain_info_;
+  std::vector<double> joint_lower_lim_;
+  std::vector<double> joint_upper_lim_;
 
  std::shared_ptr<reachability_description::ReachabilityDescription> rd_;
+
+
 
 };

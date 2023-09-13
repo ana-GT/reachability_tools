@@ -37,12 +37,18 @@ void ReachGraphAggregated::reset()
 /**
  * @function fillFromGraph 
  */
-void ReachGraphAggregated::fillFromGraph( const std::shared_ptr<reachability_description::ReachabilityDescription> &_rd, 
+bool ReachGraphAggregated::fillFromGraph( const std::shared_ptr<reachability_description::ReachabilityDescription> &_rd, 
                                           const std::string &_chain_group)
 {
     chain_group_ = _chain_group;
     rd_ = _rd;
     std::shared_ptr<reachability_description::ReachGraph> rg = rd_->getReachGraph(_chain_group);
+
+    if(rg == nullptr)
+        return false;
+
+    if(!rd_->getChainInfo(_chain_group, chain_info_))
+        return false;
 
     // Clean up first
     this->reset();
@@ -72,7 +78,17 @@ void ReachGraphAggregated::fillFromGraph( const std::shared_ptr<reachability_des
         
     } // for i
 
+    // Fill chain data
+    std::vector<std::pair<double, double>> joint_limits;
+    joint_limits = rd_->getJointLimits(chain_group_);
+    for(auto ji : joint_limits)
+    {
+        joint_lower_lim_.push_back(ji.first);
+        joint_upper_lim_.push_back(ji.second);
+    }
+
    printf("After filling: min: %d max: %d \n", min_voxel_samples_, max_voxel_samples_);
+   return true;
 }
 
 /**
@@ -131,7 +147,7 @@ std::vector<PlaceSol> ReachGraphAggregated::solvePCA(const Eigen::Isometry3d &_T
    std::vector< std::vector<Sample> > sis_nn;
    for(int i = 0; i < centers.size(); ++i)
    {
-    printf("Center[%d]: %f %f %f \n", i, centers[i].x, centers[i].y, centers[i].z );
+    RCLCPP_INFO(rclcpp::get_logger("reach_graph"), "Center[%d]: %f %f %f", i, centers[i].x, centers[i].y, centers[i].z );
     cv::Mat query(1, 3, CV_32FC1);
     query.at<float>(0,0) = centers[i].x;
     query.at<float>(0,1) = centers[i].y;
@@ -145,14 +161,10 @@ std::vector<PlaceSol> ReachGraphAggregated::solvePCA(const Eigen::Isometry3d &_T
     for(int i = 0; i < num; ++i)
     {
         int ind = indices.at<int>(i);
-        cv::Vec3f p = points.at<cv::Vec3f>(ind);
+        cv::Vec3f p = points.at<cv::Vec3f>(ind); // dists.at<float>(i)
         
         cis_nn_i.push_back( _candidates[ind] );
         sis_nn_i.push_back( _samples[ind] );
-        /*printf("\t * Radius search. Point[%d]: %f %f %f - dist: %f \n", i, p(0), 
-                p(1), 
-                p(2),
-                dists.at<float>(i)  );*/
     } // for k closest
 
     if(num > 0)
@@ -170,30 +182,93 @@ std::vector<PlaceSol> ReachGraphAggregated::solvePCA(const Eigen::Isometry3d &_T
    std::vector<PlaceSol> sols;
    for(int i = 0; i < cis.size(); ++i)
    {
-    // Calculate planar projection of neighbors
-    Eigen::Isometry3d Tf_proj;
-    Tf_proj = PlaceSol::projectNN(cis_nn[i]);
-    KDL::JntArray q_init, q_out;
-    q_init = vectorToJntArray(sis[i].q);
-
-    KDL::Twist bounds = KDL::Twist::Zero();
-    KDL::Frame p_in;
-    tf2::transformEigenToKDL(Tf_proj.inverse()*_Tg, p_in);
-    int ik_sol = rd_->getIKSolver(chain_group_)->CartToJnt(q_init, p_in, q_out, bounds);
-    if(ik_sol > 0)
-    {
-        PlaceSol ps;
-        ps.Twb = Tf_proj;
-        ps.q = q_out;
-        sols.push_back(ps);
-    }
+    if(simpleYawSearch(_Tg, cis[i], sis[i]))
+        sols.push_back(cis[i]);
 
    }
 
     return sols;
 }                                                         
 
+/**
+ * @function simpleYawSearch 
+ */
+bool ReachGraphAggregated::simpleYawSearch(const Eigen::Isometry3d &_Tg,
+                     PlaceSol &_candidate, 
+                     const Sample &_sample)
+{
+   _candidate.Twb = _candidate.project();
 
+   KDL::JntArray max_q;
+   double max_metric = 0;
+   Eigen::Matrix3d max_rot;
+
+   for(int i = 0; i < 12; ++i)
+   {
+      Eigen::Matrix3d m;
+      m = Eigen::AngleAxisd(-M_PI + i*30.0/180.0*M_PI, Eigen::Vector3d(0,0,1));
+
+      _candidate.Twb.linear() = m;
+
+      // IK
+      KDL::JntArray q_init, q_out;
+      q_init = vectorToJntArray(_sample.q);
+
+      KDL::Twist bounds = KDL::Twist::Zero();
+      KDL::Frame p_in;
+      tf2::transformEigenToKDL(_candidate.Twb.inverse()*_Tg, p_in);
+      int ik_sol = rd_->getIKSolver(chain_group_)->CartToJnt(q_init, p_in, q_out, bounds);
+      
+      std::vector<KDL::JntArray> all_sols;
+      if(!rd_->getIKSolver(chain_group_)->getSolutions(all_sols))
+        continue;
+        
+       RCLCPP_INFO(rclcpp::get_logger("reach_graph"), "All sols: %lu ", all_sols.size());
+ 
+       for(int j = 0; j < all_sols.size(); ++j) 
+       {
+        // Check if solution is collision free
+        if(rd_->isSelfColliding( jntArrayToMsg(all_sols[j], chain_info_)))
+          continue;
+
+        double metric = jointRangeMetric(all_sols[j]);
+        //double metric = jointDistancePreferred();
+        if( metric  > max_metric)
+        {
+            max_metric = metric;
+            max_rot = m;
+            max_q = q_out;
+        }
+      } // for j
+
+    } // for i
+    if(max_metric > 0)
+    {
+        _candidate.Twb.linear() = max_rot;
+        _candidate.q = max_q;
+        return true;
+    }
+    else
+        return false;
+}
+
+/**
+ * @function jointRangeMetric 
+ */
+double ReachGraphAggregated::jointRangeMetric(const KDL::JntArray &_q)
+{
+    double res = 1;
+    double factor;
+    double range;
+    for(int i = 0; i < joint_upper_lim_.size(); ++i)
+    {
+        range = joint_upper_lim_[i] - joint_lower_lim_[i];
+        factor = (_q(i) - joint_lower_lim_[i])*(joint_upper_lim_[i] - _q(i))/(range*range);
+        res *= factor;
+    }
+
+    return res;
+}
 
 /**
  * @function solveSimpleProjection 
@@ -310,7 +385,7 @@ bool ReachGraphAggregated::getCandidates(const Eigen::Isometry3d &_Tg,
         _candidates.insert(_candidates.end(), best_candidates.begin(), best_candidates.end());
         _samples.insert(_samples.end(), best_samples.begin(), best_samples.end());
 
-    printf("Num voxels with solutions: %d. Num total samples: %d, strict: %d (%f) Maximum samples with sol in a voxel: %d.\n", 
+    RCLCPP_INFO(rclcpp::get_logger("reach_graph"), "# voxels with sols: %d. Num total samples: %ld, strict: %d (%f) Maximum samples with sol in a voxel: %d.\n", 
             num_voxels, _candidates.size(), _best_candidates, (double) _best_candidates/(double)_candidates.size() , maximum_samples);
 
     return true;

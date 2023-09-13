@@ -30,17 +30,21 @@ bool RobotEntity::init(const std::string &_urdf_string,
   if (!urdf_->initString(_urdf_string))
     return false;
 
-
   if (srdf_model_->initString(*urdf_, _srdf_string))
   {
       std::vector<srdf::Model::CollisionPair> ignored = srdf_model_->getDisabledCollisionPairs();
       for (auto ign : ignored)
         srdf_disabled_coll_pairs_.push_back(std::pair<std::string, std::string>(ign.link1_, ign.link2_));
-  }
+  } else
+    return false;
 
 
   // Init KDL Tree
-  kdl_parser::treeFromUrdfModel(*urdf_, tree_);
+  if(!kdl_parser::treeFromUrdfModel(*urdf_, tree_))
+  {
+    RCLCPP_ERROR(rclcpp::get_logger("debug"), "KDL TREE START FROM URDF MODEL - RE");
+    return false;
+  }
   // Init FK
   fk_.reset(new robot_unit::TreeFkSolverPos_recursive(tree_));
 
@@ -72,10 +76,12 @@ bool RobotEntity::init(const std::string &_urdf_string,
   // Get root
   root_link_name_ = tree_.getRootSegment()->second.segment.getName();
 
-
   return true;
 }
 
+/**
+ * @function getMimicInfo 
+ */
 bool RobotEntity::getMimicInfo()
 {
   for (auto ji : joint_names_)
@@ -114,6 +120,9 @@ bool isValidJointType(KDL::Joint::JointType joint_type)
   return false;
 }
 
+/**
+ * @function getChainInfo 
+ */
 bool RobotEntity::getChainInfo(const std::string &_chain_name, 
                                reachability_msgs::msg::ChainInfo &_chain_info)
 {
@@ -168,10 +177,6 @@ bool RobotEntity::getIndices()
   num_links_ = tree_.getNrOfSegments() + 1;
   num_joints_ = tree_.getNrOfJoints();
 
-  printf("KDL Number of segments: %d and joints: %d \n",
-         num_links_,
-         num_joints_);
-
   // 1. Get joints ordered
   joint_names_.clear();
   joint_names_.resize(num_joints_);
@@ -203,10 +208,20 @@ bool RobotEntity::getIndices()
 
   // 4. Get joint's child link names
   joint_child_link_names_.clear();
+
   for (auto ji : joint_names_)
   {
     if (urdf_->getJoint(ji))
+    {
       joint_child_link_names_[ji] = urdf_->getJoint(ji)->child_link_name;
+ 
+      if(urdf_->getJoint(ji)->type == urdf::Joint::PRISMATIC ||
+         urdf_->getJoint(ji)->type == urdf::Joint::REVOLUTE)
+      {     
+        joint_lower_lim_[ji] = urdf_->getJoint(ji)->limits->lower;
+        joint_upper_lim_[ji] = urdf_->getJoint(ji)->limits->upper;
+      } 
+    }
   }
 
   return true;
@@ -299,6 +314,22 @@ std::vector<std::pair<std::string, std::string>>  RobotEntity::getSrdfDisabledCo
   return srdf_disabled_coll_pairs_;
 }
 
+bool RobotEntity::getJointLimits(const std::vector<std::string> &_joint_names,
+                                 std::vector<std::pair<double, double> > &_joint_limits)
+{
+  for(auto ji : _joint_names)
+  {
+    if(joint_lower_lim_.find(ji) == joint_lower_lim_.end() ||
+       joint_upper_lim_.find(ji) == joint_upper_lim_.end() )
+      return false;
+    
+    _joint_limits.push_back(std::pair<double, double>(joint_lower_lim_[ji], joint_upper_lim_[ji]));
+  }
+
+  return true;
+}
+
+
 bool RobotEntity::getCollisionMarkers(const std::string &_link, 
                                       visualization_msgs::msg::MarkerArray &_markers)
 {
@@ -363,6 +394,51 @@ bool RobotEntity::getCollisionMarkers(const std::string &_link,
       _markers.markers.push_back(mi);
     }
   }
+
+  return true;
+}
+
+/**
+ * @function getChainGroupState 
+ */
+bool RobotEntity::getChainGroupState(const std::string &_chain_group,
+                                     const std::string &_state_name,
+                                     KDL::JntArray &_state)
+{
+
+  reachability_msgs::msg::ChainInfo ci;
+  if(!this->getChainInfo(_chain_group, ci))
+    return false;
+
+  std::vector<srdf::Model::GroupState> gs = srdf_model_->getGroupStates();
+  std::map<std::string, double> sm;
+  for(auto gi : srdf_model_->getGroupStates())
+  {
+    if( gi.group_ == _chain_group)
+    {
+      if(gi.name_ == _state_name)
+      {
+        for(auto ai : gi.joint_values_)
+        {
+          if(ai.second.size() == 0)
+            return false;
+
+          sm[ai.first] = ai.second[0];
+        } // for
+
+        break;
+      } // if gi.name
+
+    } // if gi.group
+  } // for gi
+
+  if(sm.size() != ci.joint_names.size())
+    return false;
+
+  _state.data.resize(ci.joint_names.size());
+  for(int i = 0; i < ci.joint_names.size(); ++i)
+    _state(i) = sm[ci.joint_names[i]];
+  
 
   return true;
 }

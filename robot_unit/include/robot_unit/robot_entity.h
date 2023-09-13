@@ -61,6 +61,11 @@ public:
                     reachability_msgs::msg::ChainInfo &_chain_info);
   bool getKDLChain(const std::string &_root_link, const std::string &_tip_link,
                 KDL::Chain &_chain);
+  bool getJointLimits(const std::vector<std::string> &_joint_names,
+                      std::vector<std::pair<double, double>> &_joint_limits);
+  bool getChainGroupState(const std::string &_chain_group,
+                          const std::string &_state_name,
+                          KDL::JntArray &_state);
 
 protected:
 
@@ -75,6 +80,8 @@ protected:
   std::shared_ptr<robot_unit::TreeFkSolverPos_recursive> fk_;
 
   std::vector<std::string> joint_names_;
+  std::map<std::string, double> joint_lower_lim_;
+  std::map<std::string, double> joint_upper_lim_;
   std::map<std::string, int> joint_indices_;
   std::vector<std::string> link_names_;
   std::map<std::string, std::string> link_parent_names_;

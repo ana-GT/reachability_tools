@@ -67,39 +67,37 @@ def generate_launch_description():
     reachability_params = {"reachability_params": reachability_yaml}
 
 
+    rviz_base = os.path.join(get_package_share_directory("robots_config"), "rviz")
+    rviz_full_config = os.path.join(rviz_base, "tiago.rviz")
+    rviz_node = Node(
+        package="rviz2",
+        executable="rviz2",
+        name="rviz2",
+        output="log",
+        arguments=["-d", rviz_full_config],
+        parameters=[]
+    )
+
     # Publish TF
-    robot_state_publisher = Node(package='robot_state_publisher',
+    rsp = Node(package='robot_state_publisher',
                executable='robot_state_publisher',
                output='both',
                parameters=[{'robot_description': urdf_config}])
     
     # Joint State publisher
-    joint_publisher = Node(
-        package='joint_state_publisher',
-        executable='joint_state_publisher',
-        name='joint_state_publisher',
-        output='screen')
-
-    # Reach
-    reach_gen = Node(
-        package='reachability_description',
-        executable='generate_reachability_node',
-        output='screen',
-        parameters=[
-            reachability_params,
-            {"robot_description": urdf_config},
-            {"robot_description_semantic" : srdf_config},
-            {"chain_group_name": "arm_torso"}, # arm_torso, arm
-            {"robot_name": "tiago"} 
-        ] #, prefix=['xterm -e gdb -ex run --args']
-    )    
+    joint_publisher_gui = Node(
+        package='joint_state_publisher_gui',
+        executable='joint_state_publisher_gui',
+        name='joint_state_publisher_gui',
+        output='screen'
+    )  
 
 
     return LaunchDescription(
         [*tiago_args,
-          robot_state_publisher,
-          joint_publisher,
-          reach_gen
+          rsp,
+          rviz_node,
+          joint_publisher_gui
         ]
 
     )

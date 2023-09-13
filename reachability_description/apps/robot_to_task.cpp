@@ -218,7 +218,7 @@ double z_task = Tfx.translation()(2);
         distances.push_back(std::make_pair(i, higher_voxels_[i].samples.size())); // 0.0 getL2Dist( req->pose, higher_indices_[i] )
  }
 
-  RCLCPP_INFO(nh_->get_logger(), "Poses in thresh: %d ", distances.size());
+  RCLCPP_INFO(nh_->get_logger(), "Poses in thresh: %lu ", distances.size());
 
   // Sort
   std::sort(distances.begin(), distances.end(), samp_comp);

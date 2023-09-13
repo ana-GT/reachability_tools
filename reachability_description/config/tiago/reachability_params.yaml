@@ -2,9 +2,22 @@ arm_torso:
 
   ik_max_time: 0.001
   ik_epsilon: 0.00001
-  
+  ik_type: "manip1"
   voxel_resolution: 0.05
   voxel_num_samples: 40 # 40, 272
+
+  ik_start_configs: ["pose_right_0_down", 
+                     "pose_right_1_down", 
+                     "pose_right_0_up", 
+                     "pose_right_1_up", 
+                     "pose_right_0_high", 
+                     "pose_right_1_high",
+                     "pose_left_0_down", 
+                     "pose_left_1_down", 
+                     "pose_left_0_up", 
+                     "pose_left_1_up", 
+                     "pose_left_0_high", 
+                     "pose_left_1_high"]
 
   x_min: -0.45
   y_min: -1.05
@@ -12,3 +25,8 @@ arm_torso:
   x_max:  1.15
   y_max:  0.95
   z_max:  1.85
+
+
+  display_reachability:
+    plane: "XZ+"
+    plane_dist: 0.0

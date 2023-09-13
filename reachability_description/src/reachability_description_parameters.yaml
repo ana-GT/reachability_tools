@@ -11,6 +11,21 @@ reachability_description_params:
     description: "IK Epsilon"
   }
 
+  ik_type: {
+    type: string,
+    default_value: "manip1",
+    description: "Type of IK",
+    validation: {
+        one_of<>:[["speed", "distance", "manip1", "manip2"]]
+    }
+  }
+
+  ik_start_configs: {
+    type: string_array,
+    default_value: [],
+    description: "List of guess configurations at start"
+  }
+
   # Voxel resolution
   voxel_resolution: {
     type: double,

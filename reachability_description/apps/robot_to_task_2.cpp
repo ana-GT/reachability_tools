@@ -110,7 +110,8 @@ void handleSrv(const std::shared_ptr<reachability_msgs::srv::MoveRobotToTask::Re
   rga_.getCandidates(Tg, candidates, samples, best_candidates);
   tf = clock();
   dt = (double)(tf-ts)/(double)CLOCKS_PER_SEC;
-  RCLCPP_INFO(nh_->get_logger(), "DT: %f to calculate for points. Points: %d. Best points: %d  \n", dt, candidates.size(), best_candidates);
+  RCLCPP_INFO(nh_->get_logger(), "DT: %f to calculate for points. Points: %ld. Best points: %d  \n", 
+              dt, candidates.size(), best_candidates);
 
   //publishCloud(points, best_points);
   publishPoints(candidates, best_candidates);
@@ -122,6 +123,7 @@ void handleSrv(const std::shared_ptr<reachability_msgs::srv::MoveRobotToTask::Re
   std::vector<Sample> best_samples; best_samples.insert(best_samples.end(), samples.end() - best_candidates, samples.end() );
 
   sols = rga_.getSolutions(Tg, best_cd, best_samples, req->num_robot_placements);
+  RCLCPP_INFO(nh_->get_logger(), "Got %lu solutions to return", sols.size());
   solutionsToMsg(sols, res->solutions);
   res->success = !sols.empty();
   return;
@@ -232,7 +234,7 @@ void publishPoints(const std::vector<PlaceSol> &_points,
 void publishCloud(const std::vector<Eigen::Isometry3d> &_points, 
                   const int &_best_points)
 {  
-  printf("Points total: %d, best points: %d \n", _points.size(), _best_points);
+  printf("Points total: %ld, best points: %d \n", _points.size(), _best_points);
   sensor_msgs::msg::PointCloud2 pcl_msg;
     
   //Modifier to describe what the fields are.
