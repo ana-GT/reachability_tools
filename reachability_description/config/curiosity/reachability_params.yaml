@@ -20,8 +20,8 @@ arm:
   z_max:  2.6
 
   display_reachability:
-    plane: "XY-"
-    plane_dist: 0.0
+    plane: "XY+"
+    plane_dist: 0.5
 
   estimate_reachability:
     max_radius: 4.0
