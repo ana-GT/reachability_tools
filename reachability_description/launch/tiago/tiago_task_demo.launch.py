@@ -66,6 +66,12 @@ def generate_launch_description():
     )
     reachability_params = {"reachability_params": reachability_yaml}
 
+    # Robot task UI Params
+    rtu_yaml = load_yaml(
+        "task_ui", "config/tiago_robot_task.yaml"
+    )
+    rtu_params = {"robot_task_ui_params": rtu_yaml}
+
     # markers
     task_marker = Node(
         package='task_ui',
@@ -73,7 +79,8 @@ def generate_launch_description():
         output='screen',
         parameters=[
             {"group": "arm_torso"},
-            {"robot_name": "tiago"}
+            {"robot_name": "tiago"},
+            rtu_params
         ]
     )    
 

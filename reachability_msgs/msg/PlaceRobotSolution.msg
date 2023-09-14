@@ -1,2 +1,2 @@
 geometry_msgs/PoseStamped base_pose
-sensor_msgs/JointState chain_config
+sensor_msgs/JointState[] chain_sols

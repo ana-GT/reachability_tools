@@ -4,9 +4,6 @@
 #include <reachability_description/reach_graph_aggregated.h>
 #include <reachability_description/reach_utilities.h>
 
-#include <opencv2/core.hpp>
-#include <opencv2/flann.hpp>
-
 double getYaw(const Eigen::Isometry3d &_Tfx)
 {
   Eigen::Matrix3d m; m = _Tfx.linear();
@@ -94,27 +91,78 @@ bool ReachGraphAggregated::fillFromGraph( const std::shared_ptr<reachability_des
 /**
  * @function getSolutions 
  */
-std::vector<PlaceSol> ReachGraphAggregated::getSolutions(const Eigen::Isometry3d &_Tg, 
-                                                         const std::vector<PlaceSol> &_candidates,
-                                                         const std::vector<Sample> &_samples,
+std::vector<PlaceSol> ReachGraphAggregated::getSolutions(const std::vector<Eigen::Isometry3d> &_Tgs, 
+                                                         const std::vector<InvData> &_candidates,
                                                          const int &_desired_num_solutions)
 {
-   //return solveSimpleProjection(_Tg, _candidates, _samples);
-   return solvePCA(_Tg, _candidates, _samples, _desired_num_solutions);
+   return solvePCA(_Tgs, _candidates, _desired_num_solutions);
 }                                        
+
+/**
+ * @function fillIndex 
+ */
+void ReachGraphAggregated::fillIndex(const std::vector<InvData> &_candidates,
+                                     std::shared_ptr<cv::flann::Index> &_index)
+{
+   cv::flann::KDTreeIndexParams params(1);
+
+   cv::Mat data(_candidates.size(), 3, CV_32FC1);
+   for(int i = 0; i < _candidates.size(); ++i)
+   {
+    Eigen::Vector3d p;
+    p = _candidates[i].place.Twb.translation();
+    data.at<float>(i, 0) = (float)p(0);
+    data.at<float>(i, 1) = (float)p(1);
+    data.at<float>(i, 2) = (float)p(2);   
+   }     
+
+   _index.reset(new cv::flann::Index(data, params));
+}
+
+/**
+ * @function getNN 
+ */
+int ReachGraphAggregated::getNN(const double &_x, const double &_y, const double &_z,
+          const std::shared_ptr<cv::flann::Index> &index_ptr,
+          std::vector<int> &_inds,
+          const float &_nn_radius,
+          const int &_max_neighbors)
+{
+    // Reset
+   _inds.clear();
+
+   // Calculate
+   cv::Mat indices, dists;
+
+    cv::Mat query(1, 3, CV_32FC1);
+    query.at<float>(0,0) = _x;
+    query.at<float>(0,1) = _y;
+    query.at<float>(0,2) = _z;
+
+    int num_nn = index_ptr->radiusSearch(query, 
+                            indices, dists, 
+                            _nn_radius, _max_neighbors, 
+                            cv::flann::SearchParams(32));
+
+    for(int i = 0; i < num_nn; ++i)
+        _inds.push_back(indices.at<int>(i));
+
+    return num_nn;
+}
 
 /**
  * @function solveSimpleProjection 
  */
-std::vector<PlaceSol> ReachGraphAggregated::solvePCA(const Eigen::Isometry3d &_Tg, 
-                                                     const std::vector<PlaceSol> &_candidates,
-                                                     const std::vector<Sample> &_samples,
+std::vector<PlaceSol> ReachGraphAggregated::solvePCA(const std::vector<Eigen::Isometry3d> &_Tgs, 
+                                                     const std::vector<InvData> &_candidates,
                                                      const int &_num_clusters)
 {
+    float nn_radius = 0.05*0.05;
+    int max_neighbors = 20;
+
    //1. Get centers
-   int max_neighbors = 20;
    cv::Mat points(_candidates.size(), 1, CV_32FC3);
-   cv::Mat data(_candidates.size(), 3, CV_32FC1);
+   
    cv::Mat labels;
    std::vector<cv::Point3f> centers;
 
@@ -122,11 +170,8 @@ std::vector<PlaceSol> ReachGraphAggregated::solvePCA(const Eigen::Isometry3d &_T
    for(int i = 0; i < _candidates.size(); ++i)
    {
     Eigen::Vector3d p;
-    p = _candidates[i].Twb.translation();
+    p = _candidates[i].place.Twb.translation();
     points.at<cv::Vec3f>(i) = cv::Vec3f( (float)p(0), (float)p(1), (float)p(2));
-    data.at<float>(i, 0) = (float)p(0);
-    data.at<float>(i, 1) = (float)p(1);
-    data.at<float>(i, 2) = (float)p(2);   
    }     
 
    cv::kmeans(points, _num_clusters, labels,
@@ -134,57 +179,34 @@ std::vector<PlaceSol> ReachGraphAggregated::solvePCA(const Eigen::Isometry3d &_T
    3, cv::KMEANS_PP_CENTERS, centers);
 
    // Get close points to the centers
-   cv::Mat indices, dists;
-   float radius = 0.05*0.05;
-   cv::flann::KDTreeIndexParams params(1);
-   cv::flann::Index index(data, params);
+   std::shared_ptr<cv::flann::Index> index_ptr;
+   fillIndex(_candidates, index_ptr);
 
-
-    std::vector<PlaceSol> cis;
-    std::vector<Sample> sis;
-
-   std::vector< std::vector<PlaceSol> > cis_nn;
-   std::vector< std::vector<Sample> > sis_nn;
+   std::vector<InvData> id;
+   std::vector< std::vector<InvData> > id_nn;
    for(int i = 0; i < centers.size(); ++i)
    {
-    RCLCPP_INFO(rclcpp::get_logger("reach_graph"), "Center[%d]: %f %f %f", i, centers[i].x, centers[i].y, centers[i].z );
-    cv::Mat query(1, 3, CV_32FC1);
-    query.at<float>(0,0) = centers[i].x;
-    query.at<float>(0,1) = centers[i].y;
-    query.at<float>(0,2) = centers[i].z;
+    std::vector<int> indices;
+    if( getNN(centers[i].x, centers[i].y, centers[i].z,
+              index_ptr, indices, nn_radius, max_neighbors) == 0)
+        continue;
 
-    int num = index.radiusSearch(query, indices, dists, radius, max_neighbors, cv::flann::SearchParams(32));
+    std::vector<InvData> id_nn_i;
+    for(int i = 0; i < indices.size(); ++i)
+      id_nn_i.push_back( _candidates[indices[i]] );
 
-
-    std::vector<PlaceSol> cis_nn_i;
-    std::vector<Sample> sis_nn_i;
-    for(int i = 0; i < num; ++i)
-    {
-        int ind = indices.at<int>(i);
-        cv::Vec3f p = points.at<cv::Vec3f>(ind); // dists.at<float>(i)
-        
-        cis_nn_i.push_back( _candidates[ind] );
-        sis_nn_i.push_back( _samples[ind] );
-    } // for k closest
-
-    if(num > 0)
-    {
-        cis.push_back(_candidates[indices.at<int>(0)]);
-        sis.push_back(_samples[indices.at<int>(0)]);
-        cis_nn.push_back(cis_nn_i);
-        sis_nn.push_back(sis_nn_i);
-    }
-
+    id.push_back(_candidates[indices[0]]);
+    id_nn.push_back(id_nn_i);
+ 
    } // for centers
 
 
    // 2. See if there are solutions
    std::vector<PlaceSol> sols;
-   for(int i = 0; i < cis.size(); ++i)
+   for(int i = 0; i < id.size(); ++i)
    {
-    if(simpleYawSearch(_Tg, cis[i], sis[i]))
-        sols.push_back(cis[i]);
-
+    if(simpleYawSearch(_Tgs, id[i]))
+        sols.push_back(id[i].place);
    }
 
     return sols;
@@ -193,59 +215,87 @@ std::vector<PlaceSol> ReachGraphAggregated::solvePCA(const Eigen::Isometry3d &_T
 /**
  * @function simpleYawSearch 
  */
-bool ReachGraphAggregated::simpleYawSearch(const Eigen::Isometry3d &_Tg,
-                     PlaceSol &_candidate, 
-                     const Sample &_sample)
+bool ReachGraphAggregated::simpleYawSearch(const std::vector<Eigen::Isometry3d> &_Tgs,
+                        InvData &_candidate)
 {
-   _candidate.Twb = _candidate.project();
+   _candidate.place.Twb = _candidate.place.project();
 
    KDL::JntArray max_q;
    double max_metric = 0;
    Eigen::Matrix3d max_rot;
-
+   
+   std::vector<PlaceSol> valid_rotations;
    for(int i = 0; i < 12; ++i)
    {
+      bool found_solution_task_step = true;
+      PlaceSol ps;
+      ps.Twb = _candidate.place.Twb;
       Eigen::Matrix3d m;
       m = Eigen::AngleAxisd(-M_PI + i*30.0/180.0*M_PI, Eigen::Vector3d(0,0,1));
+      ps.Twb.linear() = m;
 
-      _candidate.Twb.linear() = m;
+      for(auto Tgi : _Tgs)
+      {
+         KDL::JntArray q_init, q_out;
+         q_init = vectorToJntArray(_candidate.sample.q);
 
-      // IK
-      KDL::JntArray q_init, q_out;
-      q_init = vectorToJntArray(_sample.q);
+         KDL::Twist bounds = KDL::Twist::Zero();
+         KDL::Frame p_in;
+         tf2::transformEigenToKDL(ps.Twb.inverse()*Tgi, p_in);
+         rd_->getIKSolver(chain_group_)->CartToJnt(q_init, p_in, q_out, bounds);
 
-      KDL::Twist bounds = KDL::Twist::Zero();
-      KDL::Frame p_in;
-      tf2::transformEigenToKDL(_candidate.Twb.inverse()*_Tg, p_in);
-      int ik_sol = rd_->getIKSolver(chain_group_)->CartToJnt(q_init, p_in, q_out, bounds);
-      
-      std::vector<KDL::JntArray> all_sols;
-      if(!rd_->getIKSolver(chain_group_)->getSolutions(all_sols))
-        continue;
-        
-       RCLCPP_INFO(rclcpp::get_logger("reach_graph"), "All sols: %lu ", all_sols.size());
- 
-       for(int j = 0; j < all_sols.size(); ++j) 
-       {
-        // Check if solution is collision free
-        if(rd_->isSelfColliding( jntArrayToMsg(all_sols[j], chain_info_)))
-          continue;
+         std::vector<KDL::JntArray> all_sols;
+         if(!rd_->getIKSolver(chain_group_)->getSolutions(all_sols))
+         {
+            found_solution_task_step = false;
+            break;
+         }
 
-        double metric = jointRangeMetric(all_sols[j]);
-        //double metric = jointDistancePreferred();
-        if( metric  > max_metric)
-        {
-            max_metric = metric;
-            max_rot = m;
-            max_q = q_out;
-        }
-      } // for j
+         std::vector<KDL::JntArray> coll_free_sols;
+         for(int j = 0; j < all_sols.size(); ++j) 
+         {
+           // Check if solution is collision free
+           if(!rd_->isSelfColliding( jntArrayToMsg(all_sols[j], chain_info_)))
+             coll_free_sols.push_back(all_sols[j]);
+         }
+
+         // No solutions collision-free
+         if(coll_free_sols.empty())
+         {
+            found_solution_task_step = false;
+            break;
+         }
+         else
+         {
+            // Store
+            ps.q.push_back(coll_free_sols[0]);
+         }
+
+
+      } // Tgi
+
+      if(found_solution_task_step)
+      {
+        valid_rotations.push_back(ps);
+      }
 
     } // for i
-    if(max_metric > 0)
-    {
-        _candidate.Twb.linear() = max_rot;
-        _candidate.q = max_q;
+
+    /*
+           double metric = jointRangeMetric(all_sols[j]);
+           //double metric = jointDistancePreferred();
+           if( metric  > max_metric)
+           {
+             max_metric = metric;
+             max_rot = m;
+             max_q = q_out;
+           }*/
+//    if(max_metric > 0)
+//    {
+       RCLCPP_INFO(rclcpp::get_logger("reach_graph"), "Valid rotations: %lu ", valid_rotations.size());
+    if(valid_rotations.size() > 0)
+    {  
+        _candidate.place = valid_rotations[0];
         return true;
     }
     else
@@ -297,7 +347,7 @@ std::vector<PlaceSol> ReachGraphAggregated::solveSimpleProjection(const Eigen::I
     {
         PlaceSol ps;
         ps.Twb = planars[i];
-        ps.q = q_out;
+        ps.q.push_back(q_out);
         sols.push_back(ps);
     }
 
@@ -309,84 +359,130 @@ std::vector<PlaceSol> ReachGraphAggregated::solveSimpleProjection(const Eigen::I
 /**
  * @function getCandidates
  */
-bool ReachGraphAggregated::getCandidates(const Eigen::Isometry3d &_Tg, 
-                                        std::vector<PlaceSol> &_candidates,
-                                        std::vector<Sample> &_samples,
-                                        int &_best_candidates)
+bool ReachGraphAggregated::getCandidates(const std::vector<Eigen::Isometry3d> &_Tgs, 
+                                        std::vector<InvData> &_candidates,
+                                        std::vector<InvData> &_best_candidates)
 {
-    double thresh = 0.05;
-    int num_voxels = 0;
-    int num_samples_acc = 0;
-    int maximum_samples = 0;
+    if(_Tgs.empty())
+        return false;
+
+    double z_thresh = rd_->getReachGraph(chain_group_)->getResolution();
     double angle_thresh = 30.0*M_PI/180.0;
+    int samples_thresh = (int)(0.5* (double) max_voxel_samples_);
 
     // Reset
     _candidates.clear();
-    _samples.clear();
+    _best_candidates.clear();
 
-    int samples_thresh = (int)(0.5* (double) max_voxel_samples_);
-
-    std::vector<PlaceSol> best_candidates;
-    std::vector<Sample> best_samples;
-    std::vector< std::vector<Sample> >::iterator s_iter;
-
-    for(s_iter = samples_.begin(); s_iter != samples_.end(); ++s_iter)
+    std::vector<std::vector<InvData>> inv_data(_Tgs.size());
+    std::vector<std::vector<InvData>> best_inv_data(_Tgs.size());
+    for(int i = 0; i < _Tgs.size(); ++i)
     {
-        if(s_iter->size() < samples_thresh)
-            continue;
+       if(!getCandidates(_Tgs[i], inv_data[i], best_inv_data[i], samples_thresh, z_thresh, angle_thresh))
+            return false;
 
-       int num_samples_within_thresh = 0;
-       std::vector<Sample>::iterator iti;
-       for(iti = s_iter->begin(); iti != s_iter->end(); ++iti)
-       {
-          PlaceSol ci;
+        RCLCPP_INFO(rclcpp::get_logger("reach_graph"), "CANDIDATE [%d]: Size: %lu - %lu", i, inv_data[i].size(), best_inv_data[i].size() );        
+    }
 
-          // Behind the robot // TESTING 
-          //if(iti->Tf_ee.translation()(0) < 0)
-          //  continue;
+    // Get intersection
+    std::vector<InvData> culled_candidates = best_inv_data[0];
 
-          ci.Twb = _Tg* (iti->Tf_ee_inv);
+        RCLCPP_INFO(rclcpp::get_logger("reach_graph"), "Culled candidates start: %ld", culled_candidates.size());
+
+    for(int i = 1; i < best_inv_data.size(); ++i)
+      intersect_candidates(culled_candidates, best_inv_data[i]);
+
+        RCLCPP_INFO(rclcpp::get_logger("reach_graph"), "Culled candidates after: %ld", culled_candidates.size());
+
+    // Just put everything together
+    /*
+    for(int i = 0; i < inv_data.size(); ++i )
+    {
+        _candidates.insert(_candidates.end(), inv_data[i].begin(), inv_data[i].end());
+        _best_candidates.insert(_best_candidates.end(), best_inv_data[i].begin(), best_inv_data[i].end());
+    }*/
+
+    _best_candidates = culled_candidates;
+    return !_best_candidates.empty();
+}
+
+/**
+ * @function intersect_candidates 
+ */
+bool ReachGraphAggregated::intersect_candidates(std::vector<InvData> &_culled_candidates,
+                          const std::vector<InvData> &_additional_candidates)
+{
+    RCLCPP_INFO(rclcpp::get_logger("reach_graph"), "Culled candidates: %ld and additional candidates: %ld", 
+    _culled_candidates.size(), _additional_candidates.size());
+
+   float nn_radius = 0.05;
+   int max_neighbors = 20;
+   std::vector<InvData> intersect_candidates;
+
+   std::shared_ptr<cv::flann::Index> index_ptr;
+   fillIndex(_additional_candidates, index_ptr);
+
+   for(auto ci : _culled_candidates)
+   {
+    std::vector<int> indices;
+    if( getNN(ci.place.Twb.translation()(0), 
+              ci.place.Twb.translation()(1),
+              ci.place.Twb.translation()(2),
+              index_ptr, indices, nn_radius, max_neighbors) == 0)
+        continue;
+
+     intersect_candidates.push_back(ci);
+   }
+   RCLCPP_INFO(rclcpp::get_logger("reach_graph"), "Intersect  candidates after: %lu ", intersect_candidates.size());
+
+   _culled_candidates = intersect_candidates;
+
+   return (!_culled_candidates.empty());
+}
+
+/**
+ * @function getCandidates 
+ */
+bool ReachGraphAggregated::getCandidates(const Eigen::Isometry3d &_Tg,
+                        std::vector<InvData> &_candidates,
+                        std::vector<InvData> &_best_candidates,
+                        const int &_samples_thresh,
+                        const double &_z_thresh,
+                        const double &_angle_thresh)
+{                   
+   std::vector< std::vector<Sample> >::iterator s_iter;
+
+   for(s_iter = samples_.begin(); s_iter != samples_.end(); ++s_iter)
+   {
+      if(s_iter->size() < _samples_thresh)
+        continue;
+
+      std::vector<Sample>::iterator iti;
+      for(iti = s_iter->begin(); iti != s_iter->end(); ++iti)
+      {
+         PlaceSol ci;
+         ci.Twb = _Tg* (iti->Tf_ee_inv);
            
-          if(fabs(ci.Twb.translation()(2)) < thresh)
-          { 
-             num_samples_within_thresh++;
+         if(fabs(ci.Twb.translation()(2)) < _z_thresh)
+         { 
             double z_angle;
             z_angle = (ci.Twb.linear().col(2)).dot( Eigen::Vector3d(0,0,1));
-            if( fabs( acos(z_angle) ) < angle_thresh )
-            {
-                best_samples.push_back(*iti);
-                best_candidates.push_back(ci);
-            } else
-            {
-            _samples.push_back(*iti);
-            _candidates.push_back(ci);
-            }
 
-          }       
+            InvData id;
+            id.place = ci;
+            id.sample = *iti;
 
-       } // for 
+            if( fabs( acos(z_angle) ) < _angle_thresh )
+              _best_candidates.push_back(id);
+            else
+              _candidates.push_back(id);
+
+         }       
+
+       } // for iti
+
+    } // for s_iter 
 
 
-      if(num_samples_within_thresh > 0)
-      {
-        num_samples_acc += num_samples_within_thresh;
-
-        num_voxels++;
-        if(num_samples_within_thresh > maximum_samples)
-        {
-            maximum_samples = num_samples_within_thresh;
-        }
-      }
-
-    } // for 
-
-        // Add best points at the end
-        _best_candidates = best_candidates.size();
-        _candidates.insert(_candidates.end(), best_candidates.begin(), best_candidates.end());
-        _samples.insert(_samples.end(), best_samples.begin(), best_samples.end());
-
-    RCLCPP_INFO(rclcpp::get_logger("reach_graph"), "# voxels with sols: %d. Num total samples: %ld, strict: %d (%f) Maximum samples with sol in a voxel: %d.\n", 
-            num_voxels, _candidates.size(), _best_candidates, (double) _best_candidates/(double)_candidates.size() , maximum_samples);
-
-    return true;
+   return !_best_candidates.empty();    
 }

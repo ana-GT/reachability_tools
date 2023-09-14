@@ -94,38 +94,39 @@ void handleSrv(const std::shared_ptr<reachability_msgs::srv::MoveRobotToTask::Re
   }
 
   int num = rd_->getReachGraph(chain_group_)->getNumPoints();
-
-  Eigen::Isometry3d Tg;
-  tf2::fromMsg(req->tcp_poses[0].pose, Tg);      
+  
+  // Read goal poses
+  std::vector<Eigen::Isometry3d> Tgs(req->tcp_poses.size());
+  for(int i = 0; i < req->tcp_poses.size(); ++i)
+    tf2::fromMsg(req->tcp_poses[i].pose, Tgs[i]);      
 
   clock_t ts, tf; double dt;
-  int within_range = 0;
-  bool within_range_sample;
-  int within_range_sample_acc = 0;
 
-  std::vector<PlaceSol> candidates;
-  std::vector<Sample> samples;
-  int best_candidates;
+  std::vector<InvData> candidates;
+  std::vector<InvData> best_candidates;
   ts = clock();
-  rga_.getCandidates(Tg, candidates, samples, best_candidates);
+  rga_.getCandidates(Tgs, candidates, best_candidates);
   tf = clock();
   dt = (double)(tf-ts)/(double)CLOCKS_PER_SEC;
-  RCLCPP_INFO(nh_->get_logger(), "DT: %f to calculate for points. Points: %ld. Best points: %d  \n", 
-              dt, candidates.size(), best_candidates);
+  RCLCPP_INFO(nh_->get_logger(), "DT: %f to calculate for points. Points: %ld. Best points: %ld  \n", 
+              dt, candidates.size(), best_candidates.size());
 
   //publishCloud(points, best_points);
   publishPoints(candidates, best_candidates);
 
+  if(best_candidates.empty())
+  {
+    res->success = false;
+    return;
+  }
+
   // Get solutions
   std::vector<PlaceSol> sols;
-
-  std::vector<PlaceSol> best_cd; best_cd.insert(best_cd.end(), candidates.end() - best_candidates, candidates.end());
-  std::vector<Sample> best_samples; best_samples.insert(best_samples.end(), samples.end() - best_candidates, samples.end() );
-
-  sols = rga_.getSolutions(Tg, best_cd, best_samples, req->num_robot_placements);
+  sols = rga_.getSolutions(Tgs, best_candidates, req->num_robot_placements);
   RCLCPP_INFO(nh_->get_logger(), "Got %lu solutions to return", sols.size());
   solutionsToMsg(sols, res->solutions);
   res->success = !sols.empty();
+    RCLCPP_INFO(nh_->get_logger(), "Returning");
   return;
 }
 
@@ -142,17 +143,22 @@ void solutionsToMsg(const std::vector<PlaceSol> &_solutions,
   for(int i = 0; i < _solutions.size(); ++i)
   {
     reachability_msgs::msg::PlaceRobotSolution prs;
-    
+
     prs.base_pose.pose = tf2::toMsg(_solutions[i].Twb);
     prs.base_pose.header.frame_id = "world";
+        RCLCPP_INFO(nh_->get_logger(), "Solution %d with %d qs", i, _solutions[i].q.size());
 
-    sensor_msgs::msg::JointState js;
-    js.name = rd_->getReachGraph(chain_group_)->getChainInfo().joint_names;
-    js.position.resize(js.name.size());
-    for(int k = 0; k < js.name.size(); ++k)
-      js.position[k] = _solutions[i].q(k);
+    for(int j = 0; j < _solutions[i].q.size(); ++j)
+    {
+       sensor_msgs::msg::JointState js;
+       js.name = rd_->getReachGraph(chain_group_)->getChainInfo().joint_names;
+       js.position.resize(js.name.size());
+       for(int k = 0; k < js.name.size(); ++k)
+         js.position[k] = _solutions[i].q[j](k);
 
-    prs.chain_config = js;
+       prs.chain_sols.push_back(js);
+
+    }
 
     // Store
     _msg.push_back(prs);
@@ -163,8 +169,8 @@ void solutionsToMsg(const std::vector<PlaceSol> &_solutions,
 /**
  * @function publishPoints 
  */
-void publishPoints(const std::vector<PlaceSol> &_points, 
-                   const int &_best_points)
+void publishPoints(const std::vector<InvData> &_points, 
+                   const std::vector<InvData> &_best_points)
 {  
   // First reset
   visualization_msgs::msg::MarkerArray msg;
@@ -186,12 +192,12 @@ void publishPoints(const std::vector<PlaceSol> &_points,
   msg_reg.scale.x = 0.005; msg_reg.scale.y = 0.005;
   msg_reg.pose.orientation.w = 1.0;
   msg_reg.id = 0;
-  for(int i = 0; i < _points.size() - _best_points; ++i)
+  for(auto pi : _points)
   {
     geometry_msgs::msg::Point p;
-    p.x = _points[i].Twb.translation()(0);
-    p.y = _points[i].Twb.translation()(1);
-    p.z = _points[i].Twb.translation()(2);
+    p.x = pi.place.Twb.translation()(0);
+    p.y = pi.place.Twb.translation()(1);
+    p.z = pi.place.Twb.translation()(2);
     msg_reg.points.push_back(p);
 
     std_msgs::msg::ColorRGBA col;
@@ -206,7 +212,7 @@ void publishPoints(const std::vector<PlaceSol> &_points,
 
   // Best points
   int count = 1;
-  for(int i = _points.size() - _best_points; i < _points.size(); ++i)
+  for(auto pi : _best_points)
   {
   visualization_msgs::msg::Marker msg_best;
   msg_best.type = visualization_msgs::msg::Marker::ARROW;
@@ -215,7 +221,7 @@ void publishPoints(const std::vector<PlaceSol> &_points,
   msg_best.scale.x = 0.03; msg_best.scale.y = 0.005; msg_best.scale.z = 0.005;
   msg_best.color.r = 1.0; msg_best.color.g = 0; msg_best.color.b = 1.0; msg_best.color.a = 1.0;
 
-  msg_best.pose = tf2::toMsg(_points[i].Twb);   
+  msg_best.pose = tf2::toMsg(pi.place.Twb);   
   msg_best.id = count;
   msg.markers.push_back(msg_best);
   count++;

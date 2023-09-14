@@ -3,7 +3,12 @@
 #include <reachability_description/reach_data.h>
 #include <reachability_description/reachability_description.h>
 #include <Eigen/Geometry>
+#include <opencv2/core.hpp>
+#include <opencv2/flann.hpp>
 
+/**
+ * @struct Sample 
+ */
 struct Sample
 {
   Eigen::Isometry3d Tf_ee;
@@ -11,12 +16,16 @@ struct Sample
   std::vector<double> q;
 };
 
+
 double getYaw(const Eigen::Isometry3d &_Tfx);
 
+/**
+ * @struct PlaceSol 
+ */
 struct PlaceSol
 {
    Eigen::Isometry3d Twb;
-   KDL::JntArray q;
+   std::vector<KDL::JntArray> q;
 
    // Keep x and y, yaw, project to a plane in Z
    Eigen::Isometry3d project(const double &_z = 0) const
@@ -59,6 +68,12 @@ struct PlaceSol
 
 };
 
+struct InvData
+{
+   PlaceSol place;
+   Sample sample;
+};
+
 /**
  * @class ReachGraphAggregated 
  */
@@ -69,14 +84,16 @@ class ReachGraphAggregated
   void reset();
   bool fillFromGraph(const std::shared_ptr<reachability_description::ReachabilityDescription> &_rd, 
                      const std::string &_chain_group);
-  bool getCandidates(const Eigen::Isometry3d &_Tg, 
-                    std::vector<PlaceSol> &_candidates,
-                    std::vector<Sample> &_samples,
-                    int &_best_candidates);
-  std::vector<PlaceSol> getSolutions(const Eigen::Isometry3d &_Tg, 
-                                     const std::vector<PlaceSol> &_candidates,
-                                     const std::vector<Sample> &_samples,
+  bool getCandidates(const std::vector<Eigen::Isometry3d> &_Tg, 
+                     std::vector<InvData> &_candidates,
+                     std::vector<InvData> &_best_candidates);
+  std::vector<PlaceSol> getSolutions(const std::vector<Eigen::Isometry3d> &_Tg, 
+                                     const std::vector<InvData> &_candidates,
                                      const int &_desired_num_solutions);     
+
+
+
+  protected:
 
 
   // Solutions
@@ -84,18 +101,33 @@ class ReachGraphAggregated
                                               const std::vector<PlaceSol> &_candidates,
                                               const std::vector<Sample> &_samples);                                                   
 
-  std::vector<PlaceSol> solvePCA(const Eigen::Isometry3d &_Tg, 
-                                 const std::vector<PlaceSol> &_candidates,
-                                 const std::vector<Sample> &_samples,
+  std::vector<PlaceSol> solvePCA(const std::vector<Eigen::Isometry3d> &_Tgs, 
+                                 const std::vector<InvData> &_candidates,
                                  const int &_num_clusters);
 
   // Helpers
-  bool simpleYawSearch(const Eigen::Isometry3d &_Tg,
-                     PlaceSol &_candidate, 
-                     const Sample &_sample);
+  bool intersect_candidates(std::vector<InvData> &_culled_candidates,
+                          const std::vector<InvData> &_additional_candidates);
+  bool simpleYawSearch(const std::vector<Eigen::Isometry3d> &_Tg,
+                        InvData &_candidate);
   double jointRangeMetric(const KDL::JntArray &_q);                   
 
-  protected:
+
+  bool getCandidates(const Eigen::Isometry3d &_Tg,
+                     std::vector<InvData> &_candidates,
+                     std::vector<InvData> &_best_candidates,
+                     const int &_samples_thresh,
+                     const double &_z_thresh,
+                     const double &_angle_thresh);
+
+  void fillIndex(const std::vector<InvData> &_candidates,
+                 std::shared_ptr<cv::flann::Index> &_index);
+
+  int getNN(const double &_x, const double &_y, const double &_z,
+            const std::shared_ptr<cv::flann::Index> &index_ptr,
+            std::vector<int> &_inds,
+            const float &_nn_radius,
+            const int &_max_neighbors);                 
 
   std::vector< std::vector<Sample> > samples_;
 
