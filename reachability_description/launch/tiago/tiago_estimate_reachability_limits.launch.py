@@ -10,8 +10,10 @@ from ament_index_python.packages import get_package_share_directory
 import xacro
 
 from launch_ros.substitutions import FindPackageShare, ExecutableInPackage
-from tiago_description.tiago_launch_utils import (get_tiago_hw_arguments,
-						    TiagoXacroConfigSubstitution)
+
+from launch_param_builder import load_xacro
+from pathlib import Path
+
 
 #####################################
 # Helpers functions
@@ -29,26 +31,29 @@ def load_yaml(package_name, file_path):
 #####################################
 def generate_launch_description():
 
-    tiago_args = get_tiago_hw_arguments(
-        laser_model=True,
-        arm=True,
-        end_effector=True,
-        ft_sensor=True,
-        camera_model=True,
-        default_end_effector='pal-gripper',
-        default_laser_model="sick-571")
+    xacro_file_path = Path(
+        os.path.join(
+            get_package_share_directory("robots_config"),
+            "robots", 'tiago',
+            "tiago.urdf.xacro",
+        )
+    )
 
-
-    urdf_config = Command(
-        [
-            ExecutableInPackage(package='xacro', executable="xacro"),
-            ' ',
-            PathJoinSubstitution(
-                [FindPackageShare('robots_config'),
-                 'robots', 'tiago', 'tiago.urdf.xacro']),
-            TiagoXacroConfigSubstitution()
-        ])
-
+    xacro_input_args = {
+        "arm_type": "tiago-arm",
+        "camera_model": "orbbec-astra",
+        "end_effector": "pal-gripper",
+        "ft_sensor": "schunk-ft",
+        "laser_model": "sick-571",
+        "wrist_model": "wrist-2010",
+        "base_type": "pmb2",
+        "has_screen": False,
+#        "use_sim_time": False,
+#        "is_public_sim": True,
+#        "namespace": read_launch_argument("namespace", context),
+    }
+    urdf_config = load_xacro(xacro_file_path, xacro_input_args)
+    
     parameters = {'robot_description': urdf_config}
 
     srdf_file = os.path.join(get_package_share_directory('robots_config'), 'config',
@@ -116,8 +121,7 @@ def generate_launch_description():
 
 
     return LaunchDescription(
-        [*tiago_args,
-          rsp,
+        [ rsp,
           rviz_node,
           static_tf,
           joint_publisher,

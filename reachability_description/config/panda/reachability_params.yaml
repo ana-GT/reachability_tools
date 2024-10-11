@@ -1,4 +1,4 @@
-panda_manipulator:
+fr3_manipulator:
 
   ik_max_time: 0.001
   ik_epsilon: 0.00001

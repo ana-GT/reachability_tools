@@ -1,6 +1,6 @@
 
 Test in Docker
-###############
+==============
 
 1. Clone repo and build image:
 
