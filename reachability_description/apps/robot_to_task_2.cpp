@@ -146,7 +146,7 @@ void solutionsToMsg(const std::vector<PlaceSol> &_solutions,
 
     prs.base_pose.pose = tf2::toMsg(_solutions[i].Twb);
     prs.base_pose.header.frame_id = "world";
-        RCLCPP_INFO(nh_->get_logger(), "Solution %d with %d qs", i, _solutions[i].q.size());
+    //RCLCPP_INFO(nh_->get_logger(), "Solution %d with %d qs", i, _solutions[i].q.size());
 
     for(int j = 0; j < _solutions[i].q.size(); ++j)
     {

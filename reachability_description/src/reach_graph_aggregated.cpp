@@ -192,8 +192,8 @@ std::vector<PlaceSol> ReachGraphAggregated::solvePCA(const std::vector<Eigen::Is
         continue;
 
     std::vector<InvData> id_nn_i;
-    for(int i = 0; i < indices.size(); ++i)
-      id_nn_i.push_back( _candidates[indices[i]] );
+    for(int j = 0; j < indices.size(); ++j)
+      id_nn_i.push_back( _candidates[indices[j]] );
 
     id.push_back(_candidates[indices[0]]);
     id_nn.push_back(id_nn_i);
@@ -358,6 +358,7 @@ std::vector<PlaceSol> ReachGraphAggregated::solveSimpleProjection(const Eigen::I
 
 /**
  * @function getCandidates
+ * @brief  
  */
 bool ReachGraphAggregated::getCandidates(const std::vector<Eigen::Isometry3d> &_Tgs, 
                                         std::vector<InvData> &_candidates,
@@ -442,6 +443,7 @@ bool ReachGraphAggregated::intersect_candidates(std::vector<InvData> &_culled_ca
 
 /**
  * @function getCandidates 
+ * @brief Get samples that allow to reach this transform with a floor constraint
  */
 bool ReachGraphAggregated::getCandidates(const Eigen::Isometry3d &_Tg,
                         std::vector<InvData> &_candidates,
@@ -462,22 +464,16 @@ bool ReachGraphAggregated::getCandidates(const Eigen::Isometry3d &_Tg,
       {
          PlaceSol ci;
          ci.Twb = _Tg* (iti->Tf_ee_inv);
+
+         InvData id;
+         id.place = ci;
+         id.sample = *iti;
            
-         if(fabs(ci.Twb.translation()(2)) < _z_thresh)
-         { 
-            double z_angle;
-            z_angle = (ci.Twb.linear().col(2)).dot( Eigen::Vector3d(0,0,1));
-
-            InvData id;
-            id.place = ci;
-            id.sample = *iti;
-
-            if( fabs( acos(z_angle) ) < _angle_thresh )
-              _best_candidates.push_back(id);
-            else
-              _candidates.push_back(id);
-
-         }       
+         if( checkConstraints(ci.Twb, _z_thresh, _angle_thresh) )
+           _best_candidates.push_back(id);
+         else
+           _candidates.push_back(id);
+                      
 
        } // for iti
 
@@ -486,3 +482,23 @@ bool ReachGraphAggregated::getCandidates(const Eigen::Isometry3d &_Tg,
 
    return !_best_candidates.empty();    
 }
+
+
+bool ReachGraphAggregated::checkConstraints( const Eigen::Isometry3d &_Twb, const double &_z_max, const double &_z_angle_max ) {
+
+  if(fabs(_Twb.translation()(2)) < _z_max)
+  { 
+     double z_angle;
+     z_angle = (_Twb.linear().col(2)).dot( Eigen::Vector3d(0,0,1));
+
+
+     if( fabs( acos(z_angle) ) < _z_angle_max )
+       return true;
+     else
+       return false;
+  }
+  
+  else
+    return false;
+}
+

@@ -129,6 +129,8 @@ class ReachGraphAggregated
             const float &_nn_radius,
             const int &_max_neighbors);                 
 
+  bool checkConstraints( const Eigen::Isometry3d &_Twb, const double &_z_max, const double &_z_angle_max );
+
   std::vector< std::vector<Sample> > samples_;
 
   int min_voxel_samples_;
