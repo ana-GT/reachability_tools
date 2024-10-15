@@ -49,14 +49,13 @@ include_directories(
 set(REACH_PARAM_LIB reachability_description_parameters)
 generate_parameter_library(${REACH_PARAM_LIB} src/reachability_description_parameters.yaml)
 
-add_library(quaternion_discretization src/quaternion_discretization.cpp)
-target_link_libraries(quaternion_discretization Eigen3::Eigen)
 
 add_library(${PROJECT_NAME} SHARED 
             src/reachability_description.cpp 
-            src/reach_data.cpp src/reach_serialization.cpp
+            src/reach_graph.cpp 
+            src/reach_serialization.cpp
             src/reach_utilities.cpp)
-target_link_libraries(${PROJECT_NAME} ${REACH_PARAM_LIB} quaternion_discretization)
+target_link_libraries(${PROJECT_NAME} ${REACH_PARAM_LIB})
 ament_target_dependencies( ${PROJECT_NAME} ${DEPS} LIBFCL)
 
 add_library(reach_graph_aggregated src/reach_graph_aggregated.cpp)
@@ -77,11 +76,6 @@ add_executable(estimate_reachability_limits_node src/estimate_reachability_limit
 target_link_libraries(estimate_reachability_limits_node ${PROJECT_NAME})
 ament_target_dependencies(estimate_reachability_limits_node ${DEPS})
 
-add_executable( test_cube_discretization apps/test_cube_discretization.cpp)
-target_link_libraries(test_cube_discretization quaternion_discretization)
-
-add_executable( test_tesseract_discretization apps/test_tesseract_discretization.cpp)
-target_link_libraries(test_tesseract_discretization quaternion_discretization)
 
 ##########
 ## Apps
@@ -110,7 +104,6 @@ install(
 install(TARGETS ${PROJECT_NAME} 
   ${REACH_PARAM_LIB}
   reach_graph_aggregated
-  quaternion_discretization
   generate_reachability_node  
   load_reachability_node 
   estimate_reachability_limits_node

@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>reach_plugin_reuleaux</name> 
+  <version>1.0.0</version>
+  <description>
+    Reachability description
+  </description>
+  <author>Ana C. Huaman Q.</author>
+  <maintainer email="ana@traclabs.com">Ana C. Huaman Q.</maintainer>
+
+  <license>BSD</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+
+  <depend>eigen</depend>
+  <depend>tf2_eigen</depend>
+  <depend>tf2_eigen_kdl</depend>
+  <depend>reachability_msgs</depend>
+  <depend>reachability_description</depend>
+  <depend>generate_parameter_library</depend>
+  
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+  
+</package>

@@ -1,0 +1,6 @@
+<library path="reach_plugin_reuleaux">
+  <class type="reachability_description::ReachGraphReuleaux" base_class_type="reachability_description::ReachGraph">
+    <description>Plugin using the Reuleaux paper implementation details</description>
+  </class>
+
+</library>

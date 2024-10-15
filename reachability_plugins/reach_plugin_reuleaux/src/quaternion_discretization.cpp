@@ -1,4 +1,4 @@
-#include <reachability_description/quaternion_discretization.h>
+#include <reach_plugin_reuleaux/quaternion_discretization.h>
 
 
 TesseractDiscretization::TesseractDiscretization()

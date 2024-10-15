@@ -77,7 +77,8 @@ def generate_launch_description():
             {"robot_description": robot_description_config.toxml()},
             {"robot_description_semantic" : srdf_config},
             {"chain_group_name": "arm_with_torso"},
-            {"robot_name": "fetch"}
+            {"robot_name": "fetch"},
+            {"plugin_name": "reachability_description::ReachGraphReuleaux"}                        
         ]
     )    
 

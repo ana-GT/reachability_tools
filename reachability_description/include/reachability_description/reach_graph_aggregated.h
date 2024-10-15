@@ -1,6 +1,6 @@
 #pragma once
 
-#include <reachability_description/reach_data.h>
+#include <reachability_description/reach_graph.h>
 #include <reachability_description/reachability_description.h>
 #include <Eigen/Geometry>
 #include <opencv2/core.hpp>
