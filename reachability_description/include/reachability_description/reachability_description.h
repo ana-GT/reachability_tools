@@ -9,9 +9,11 @@
 
 #include <robot_unit/fast_robot_collision_object.h>
 #include <Eigen/Geometry>
-#include <reachability_description/reach_data.h>
-
 #include <reachability_description_parameters.hpp>
+
+#include <pluginlib/class_loader.hpp>
+#include <reachability_description/reach_graph.h>
+
 
 namespace reachability_description
 {
@@ -25,7 +27,7 @@ namespace reachability_description
 class ReachabilityDescription
 {
     public:
-    ReachabilityDescription(const rclcpp::Node::SharedPtr &_nh);
+    ReachabilityDescription(const rclcpp::Node::SharedPtr &_node);
     ~ReachabilityDescription();
 
     bool initialize(const std::string &_robot_name);
@@ -72,6 +74,20 @@ class ReachabilityDescription
 
     protected:
 
+    bool createPluginInstance(std::shared_ptr<ReachGraph> &_rg, 
+                              const std::string &_plugin_name);
+
+    bool initializeReachGraph( std::shared_ptr<ReachGraph> &_rg, 
+                               const reachability_msgs::msg::ChainInfo &_ci, 
+                               double _min_x, double _min_y, double _min_z,
+	                       double _max_x, double _max_y, double _max_z,
+	                       const double &_resolution, 
+                               const uint16_t &_voxel_samples,
+	                       const reachability_msgs::msg::ReachData &_reach_default);
+	            
+    bool initializeReachGraph( std::shared_ptr<ReachGraph> &_rg, 
+                               const reachability_msgs::msg::ReachGraph &_msg);	            
+
     bool writeToDisk(const reachability_msgs::msg::ReachData &_msg,
                      const std::string &_filename);
     bool readFromDisk(const std::string &_filename,
@@ -83,13 +99,14 @@ class ReachabilityDescription
                 reachability_description_params::Params &_params);
 
 
-    rclcpp::Node::SharedPtr nh_;
+    rclcpp::Node::SharedPtr node_;
 
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_reach_;
 
     std::shared_ptr<RobotEntity> re_;
     std::shared_ptr<robot_unit::RobotCollisionObject> rco_;
 
+    std::shared_ptr<pluginlib::ClassLoader<reachability_description::ReachGraph> > reach_graph_loader_;
     std::map<std::string, std::shared_ptr<ReachGraph> > reach_graph_;
     std::map<std::string, std::shared_ptr<TRAC_IK::TRAC_IK> > ik_solver_;
     std::map<std::string, std::shared_ptr<KDL::ChainFkSolverPos_recursive> > fk_solver_;
@@ -101,7 +118,7 @@ class ReachabilityDescription
     std::string srdf_string_;
 
     std::mutex reach_fill_mutex_;
-
+    std::string plugin_name_;
 };
 
 } // namespace reachability_description

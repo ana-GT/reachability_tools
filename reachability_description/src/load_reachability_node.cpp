@@ -27,7 +27,11 @@ int main(int argc, char* argv[])
   // Actually generate the description
   RCLCPP_INFO(node->get_logger(), "Loading description of robot %s and group %s ", robot_name.c_str(), chain_group.c_str());   
 
-  rd.loadDescription(chain_group);
+  if(!rd.loadDescription(chain_group))
+  {
+    RCLCPP_INFO(node->get_logger(), "Error loading description from file");   
+    return 1;
+  }
 
   // View description
   RCLCPP_INFO(node->get_logger(), "View description of robot %s and group %s ", robot_name.c_str(), chain_group.c_str());   
