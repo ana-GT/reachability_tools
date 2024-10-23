@@ -99,7 +99,7 @@ void handleSrv(const std::shared_ptr<reachability_msgs::srv::GenerateReachPoses:
   int center_index = rd_->getReachGraph(chain_group_)->worldToIndex(bbox.position.x, bbox.position.y, bbox.position.z);
   
   reachability_msgs::msg::ReachData rd_center = rd_->getReachGraph(chain_group_)->getState(center_index);
-  printf("Voxel selected state: %d metric(%s): %f \n", rd_center.state, rd_center.metrics[0].name,  rd_center.metrics[0].value);
+  RCLCPP_INFO(node_->get_logger(), "Voxel selected state: %d metric(%s): %f", rd_center.state, rd_center.metrics[0].name.c_str(),  rd_center.metrics[0].value);
   int num = rd_->getReachGraph(chain_group_)->getNumPoints();
   
   // Read goal poses
