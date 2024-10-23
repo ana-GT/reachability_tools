@@ -51,7 +51,7 @@ def generate_launch_description():
     # Robot task UI node
     task_marker = Node(
         package='task_ui',
-        executable='robot_task_markers_node',
+        executable='markers_get_robot_base_node',
         output='screen',
         parameters=[
             {"group": "arm_with_torso"},

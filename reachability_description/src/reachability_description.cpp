@@ -300,6 +300,9 @@ reachability_msgs::msg::ReachData ReachabilityDescription::fillData(const std::s
   else
     rdata.state = reachability_msgs::msg::ReachData::NO_FILLED;
   
+  // Add metric
+  _reach_graph->calculateMetric(rdata);
+  
   return rdata;
 }
 

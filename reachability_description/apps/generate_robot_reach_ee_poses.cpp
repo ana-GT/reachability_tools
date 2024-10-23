@@ -1,0 +1,363 @@
+#include <reachability_description/reachability_description.h>
+#include <tf2_eigen_kdl/tf2_eigen_kdl.hpp>
+#include <algorithm>
+
+#include <reachability_description/reach_utilities.h>
+#include <reachability_description/reach_graph_aggregated.h>
+#include <nlopt.h>
+
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <sensor_msgs/msg/point_field.hpp>
+#include <sensor_msgs/point_cloud2_iterator.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
+
+#include<reachability_msgs/srv/generate_reach_poses.hpp>
+
+
+using namespace std::chrono_literals;
+
+/**
+ * @class RobotToTask
+ **/
+class GenerateRobotReachEEPoses
+{
+ public:
+
+ // Constructor
+ GenerateRobotReachEEPoses(const rclcpp::Node::SharedPtr &_nh) :
+ node_(_nh)
+ {
+    rd_.reset( new reachability_description::ReachabilityDescription(node_));
+
+ }
+
+ // Initialize
+ bool initialize(const std::string &_robot_name)
+ {
+    if(!rd_->initialize(_robot_name))
+        return false;
+
+    return true;
+ }
+
+// Load description
+ bool loadDescription(const std::string &_chain_group)
+ {
+    chain_group_ = _chain_group;
+    if(!rd_->loadDescription(_chain_group))
+        return false;
+  
+    if(!rd_->addKinematicSolvers(_chain_group))
+    	return false;
+
+    // Load rga
+    //rga_.fillFromGraph(rd_, _chain_group);
+
+    return true;
+ }
+
+// Offer service to get pose
+bool setServices()
+{
+    using std::placeholders::_1;
+    using std::placeholders::_2;
+    srv_ = node_->create_service<reachability_msgs::srv::GenerateReachPoses>("generate_reach_poses", 
+                std::bind(&GenerateRobotReachEEPoses::handleSrv, this, _1, _2));
+
+    //pub_floor_cloud_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("floor_cloud", 10);
+    //pub_floor_points_ = node_->create_publisher<visualization_msgs::msg::MarkerArray>("floor_points", 10);
+
+    // Get the indices of the highest
+    int num = rd_->getReachGraph(chain_group_)->getNumPoints();
+
+    for(int i = 0; i < num; ++i)
+    {
+      reachability_msgs::msg::ReachData rdi = rd_->getReachGraph(chain_group_)->getState(i);
+      int min_samples = (int)( above_ratio_ * rd_->getReachGraph(chain_group_)->getNumVoxelSamples() );
+      if( rdi.samples.size() > min_samples )
+      {
+        higher_indices_.push_back( i );
+        higher_voxels_.push_back(rdi);
+      }
+    }
+
+    return true;
+}
+
+// Handle service
+void handleSrv(const std::shared_ptr<reachability_msgs::srv::GenerateReachPoses::Request> req,
+               std::shared_ptr<reachability_msgs::srv::GenerateReachPoses::Response> res)
+{
+  res->success = false;
+
+  if(req->bbox.size.x == 0 || req->bbox.size.y == 0 || req->bbox.size.z == 0)
+   return;
+
+  // 1. Get closest voxel to BB's center
+  geometry_msgs::msg::Pose bbox = req->bbox.center;
+  double xi, yi, zi;
+  int center_index = rd_->getReachGraph(chain_group_)->worldToIndex(bbox.position.x, bbox.position.y, bbox.position.z);
+  
+  reachability_msgs::msg::ReachData rd_center = rd_->getReachGraph(chain_group_)->getState(center_index);
+  printf("Voxel selected state: %d metric(%s): %f \n", rd_center.state, rd_center.metrics[0].name,  rd_center.metrics[0].value);
+  int num = rd_->getReachGraph(chain_group_)->getNumPoints();
+  
+  // Read goal poses
+  Eigen::Isometry3d Tgs;
+  tf2::fromMsg(req->bbox.center, Tgs);      
+
+  clock_t ts, tf; double dt;
+
+  //std::vector<InvData> candidates;
+  //std::vector<InvData> best_candidates;
+  ts = clock();
+  //rga_.getCandidates(Tgs, candidates, best_candidates);
+  tf = clock();
+  dt = (double)(tf-ts)/(double)CLOCKS_PER_SEC;
+  //RCLCPP_INFO(node_->get_logger(), "DT: %f to calculate for points. Points: %ld. Best points: %ld  \n", 
+  //            dt, candidates.size(), best_candidates.size());
+
+  //publishCloud(points, best_points);
+  //publishPoints(candidates, best_candidates);
+/*
+  if(best_candidates.empty())
+  {
+    res->success = false;
+    return;
+  }
+*/
+  // Get solutions
+  /*
+  std::vector<PlaceSol> sols;
+  sols = rga_.getSolutions(Tgs, best_candidates, req->num_poses);
+  RCLCPP_INFO(node_->get_logger(), "Got %lu solutions to return", sols.size());
+  solutionsToMsg(sols, res->solutions);
+  res->success = !sols.empty();
+    RCLCPP_INFO(node_->get_logger(), "Returning");*/
+  return;
+}
+
+/**
+ * @function solutionsToMsg 
+ */
+ /*
+void solutionsToMsg(const std::vector<PlaceSol> &_solutions,
+                    std::vector<reachability_msgs::msg::PlaceRobotSolution> &_msg)
+{
+  // Clean up
+  _msg.clear();
+
+  // Fill message
+  for(int i = 0; i < _solutions.size(); ++i)
+  {
+    reachability_msgs::msg::PlaceRobotSolution prs;
+
+    prs.base_pose.pose = tf2::toMsg(_solutions[i].Twb);
+    prs.base_pose.header.frame_id = "world";
+    //RCLCPP_INFO(node_->get_logger(), "Solution %d with %d qs", i, _solutions[i].q.size());
+
+    for(int j = 0; j < _solutions[i].q.size(); ++j)
+    {
+       sensor_msgs::msg::JointState js;
+       js.name = rd_->getReachGraph(chain_group_)->getChainInfo().joint_names;
+       js.position.resize(js.name.size());
+       for(int k = 0; k < js.name.size(); ++k)
+         js.position[k] = _solutions[i].q[j](k);
+
+       prs.chain_sols.push_back(js);
+
+    }
+
+    // Store
+    _msg.push_back(prs);
+  }
+
+}*/
+
+/**
+ * @function publishPoints 
+ */
+ /*
+void publishPoints(const std::vector<InvData> &_points, 
+                   const std::vector<InvData> &_best_points)
+{  
+  // First reset
+  visualization_msgs::msg::MarkerArray msg;
+
+  visualization_msgs::msg::Marker del;
+  del.action = visualization_msgs::msg::Marker::DELETEALL;
+  msg.markers.push_back(del);
+
+  pub_floor_points_->publish(msg);
+
+  // Clear
+  msg.markers.clear();
+
+  // Points regular
+  visualization_msgs::msg::Marker msg_reg;
+  msg_reg.type = visualization_msgs::msg::Marker::POINTS;
+  msg_reg.action = visualization_msgs::msg::Marker::ADD;
+  msg_reg.header.frame_id = "world";
+  msg_reg.scale.x = 0.005; msg_reg.scale.y = 0.005;
+  msg_reg.pose.orientation.w = 1.0;
+  msg_reg.id = 0;
+  for(auto pi : _points)
+  {
+    geometry_msgs::msg::Point p;
+    p.x = pi.place.Twb.translation()(0);
+    p.y = pi.place.Twb.translation()(1);
+    p.z = pi.place.Twb.translation()(2);
+    msg_reg.points.push_back(p);
+
+    std_msgs::msg::ColorRGBA col;
+    col.r = 0.0; col.g = 1.0; col.b = 1.0; col.a = 1.0;
+
+    msg_reg.colors.push_back(col);
+
+  } // end for
+
+  msg.markers.push_back(msg_reg);
+
+
+  // Best points
+  int count = 1;
+  for(auto pi : _best_points)
+  {
+  visualization_msgs::msg::Marker msg_best;
+  msg_best.type = visualization_msgs::msg::Marker::ARROW;
+  msg_best.action = visualization_msgs::msg::Marker::ADD;
+  msg_best.header.frame_id = "world";
+  msg_best.scale.x = 0.03; msg_best.scale.y = 0.005; msg_best.scale.z = 0.005;
+  msg_best.color.r = 1.0; msg_best.color.g = 0; msg_best.color.b = 1.0; msg_best.color.a = 1.0;
+
+  msg_best.pose = tf2::toMsg(pi.place.Twb);   
+  msg_best.id = count;
+  msg.markers.push_back(msg_best);
+  count++;
+  } // end best for
+
+
+  // Publish
+  pub_floor_points_->publish(msg);  
+}*/
+
+
+/**
+ * @function publishCloud
+ * @brief Publish possible solutions as a PointCloud2 message 
+ */
+ /*
+void publishCloud(const std::vector<Eigen::Isometry3d> &_points, 
+                  const int &_best_points)
+{  
+  printf("Points total: %ld, best points: %d \n", _points.size(), _best_points);
+  sensor_msgs::msg::PointCloud2 pcl_msg;
+    
+  //Modifier to describe what the fields are.
+  sensor_msgs::PointCloud2Modifier modifier(pcl_msg);
+  modifier.setPointCloud2FieldsByString(2, "xyz", "rgb");
+  modifier.resize(_points.size());
+
+  //Msg header
+  pcl_msg.header = std_msgs::msg::Header();
+  pcl_msg.header.stamp = node_->get_clock()->now();
+  pcl_msg.header.frame_id = "world";
+
+  pcl_msg.height = _points.size();
+  pcl_msg.width = 1;
+  pcl_msg.is_dense = false;
+
+  int regular_points = _points.size() - _best_points;
+
+  //Iterators for PointCloud msg
+  sensor_msgs::PointCloud2Iterator<float> iterX(pcl_msg, "x");
+  sensor_msgs::PointCloud2Iterator<float> iterY(pcl_msg, "y");
+  sensor_msgs::PointCloud2Iterator<float> iterZ(pcl_msg, "z");
+  sensor_msgs::PointCloud2Iterator<uint8_t> iter_r(pcl_msg, "r");
+  sensor_msgs::PointCloud2Iterator<uint8_t> iter_g(pcl_msg, "g");
+  sensor_msgs::PointCloud2Iterator<uint8_t> iter_b(pcl_msg, "b");
+
+  //iterate over the message and populate the fields. 
+  for(int i = 0; i < _points.size(); ++i)     
+  {
+    *iterX = _points[i].translation()(0);
+    *iterY = _points[i].translation()(1);
+    *iterZ = _points[i].translation()(2);
+
+    if(i < regular_points)
+    { *iter_r = 0; *iter_g = 255; *iter_b = 255; }
+    else
+    { *iter_r = 255; *iter_g = 0; *iter_b = 255; }
+
+    // Increment the iterators
+    ++iterX;
+    ++iterY;
+    ++iterZ;
+    ++iter_r;
+    ++iter_g;
+    ++iter_b;
+  }
+
+  // Publish
+  pub_floor_cloud_->publish(pcl_msg);
+
+}
+*/
+
+ protected:
+ rclcpp::Node::SharedPtr node_;
+ std::shared_ptr<reachability_description::ReachabilityDescription> rd_;
+ //ReachGraphAggregated rga_;
+
+ rclcpp::Service<reachability_msgs::srv::GenerateReachPoses>::SharedPtr srv_;
+ //rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_floor_cloud_;
+ //rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub_floor_points_;
+
+
+
+ std::vector<int> higher_indices_;
+ std::vector<reachability_msgs::msg::ReachData> higher_voxels_;
+ double above_ratio_ = 0.2;
+ double below_z_comp_ = 0.1;
+ std::string chain_group_;
+
+ nlopt::opt opt_;
+
+};
+
+
+////////////////////////////////////
+
+int main(int argc, char* argv[])
+{
+ rclcpp::init(argc, argv);
+  std::shared_ptr<rclcpp::Node> node = rclcpp::Node::make_shared("generate_robot_reach_ee_poses");
+    RCLCPP_INFO(node->get_logger(), "Start node");
+
+  // Read parameters
+  std::string chain_group;
+  std::string robot_name;
+  if(!node->has_parameter("chain_group_name"))
+    node->declare_parameter("chain_group_name", std::string(""));
+  node->get_parameter("chain_group_name", chain_group);
+
+  if(!node->has_parameter("robot_name"))
+    node->declare_parameter("robot_name", std::string(""));
+  node->get_parameter("robot_name", robot_name);
+
+  // Hand to user app
+  GenerateRobotReachEEPoses grre(node);
+  if(!grre.initialize(robot_name))
+    return 1;
+
+  // Actually generate the description
+  grre.loadDescription(chain_group);
+
+  // Offer service
+  grre.setServices();
+
+  rclcpp::spin(node);
+
+  rclcpp::shutdown();
+  return 0;    
+}

@@ -88,7 +88,8 @@ def generate_launch_description():
             robot_description,
             robot_description_semantic,
             {"chain_group_name": "arm_base"}, # arm
-            {"robot_name": "panda_husky"} 
+            {"robot_name": "panda_husky"},
+            {"plugin_name": "reachability_description::ReachGraphReuleaux"} 
         ]
     )    
 

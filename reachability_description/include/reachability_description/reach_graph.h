@@ -39,6 +39,8 @@ class ReachGraph {
     virtual void generateSamples(const int &_xi, const int &_yi, const int &_zi, 
                                  std::vector<Eigen::Isometry3d> &_frames) {};
 
+    virtual bool calculateMetric(reachability_msgs::msg::ReachData &_rdata) { return false; };
+
     bool toMsg(reachability_msgs::msg::ReachGraph &_graph);
 
     

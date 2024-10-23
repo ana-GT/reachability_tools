@@ -120,7 +120,8 @@ def generate_launch_description():
             {"robot_description": urdf_config},
             {"robot_description_semantic" : srdf_config},
             {"chain_group_name": "arm_torso"}, # arm_torso, arm
-            {"robot_name": "tiago"} 
+            {"robot_name": "tiago"},
+            {"plugin_name": "reachability_description::ReachGraphReuleaux"}  
         ]
     )    
 

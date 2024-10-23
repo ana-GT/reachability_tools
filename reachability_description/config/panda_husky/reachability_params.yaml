@@ -24,8 +24,8 @@ arm_base:
   z_max:  1.7
 
   display_reachability:
-    plane: "YZ+"
-    plane_dist: 0.0
+    plane: "XZ+"
+    plane_dist: -0.20
 
   estimate_reachability:
     max_radius: 3.0

@@ -21,82 +21,75 @@ def load_yaml(package_name, file_path):
     except EnvironmentError:  # parent of IOError, OSError *and* WindowsError where available
         return None
 
-###########################################
+
+#####################################
 def generate_launch_description():
 
     robot_description_config = xacro.process_file(
         os.path.join(
             get_package_share_directory("robots_config"),
-            "robots", "fetch",
-            "fetch.urdf.xacro",
-        )
+            "robots", "panda_husky",
+            "panda_husky.urdf.xacro",
+        ),
+        mappings ={'hand': 'true'}
     )
     robot_description = {"robot_description": robot_description_config.toxml()}
 
-    srdf_file = os.path.join(get_package_share_directory('robots_config'), 'config',
-                                     'fetch', 'fetch.srdf')
-    srdf_config = open(srdf_file).read()
-
+    srdf_file = os.path.join(get_package_share_directory('robots_config'),'config',
+                                              'panda_husky',
+                                              'panda_husky.srdf.xacro')
+    srdf_config = Command(
+        [FindExecutable(name='xacro'), ' ', srdf_file, ' hand:=true']
+    )
     robot_description_semantic = {
         'robot_description_semantic': srdf_config
     }
 
+    # Robot task UI Params
+    rtu_yaml = load_yaml(
+        "task_ui", "config/panda_husky_robot_task.yaml"
+    )
+    rtu_params = {"robot_task_ui_params": rtu_yaml}
+
+    # Robot task UI node
+    task_marker = Node(
+        package='task_ui',
+        executable='markers_get_reach_poses_node',
+        output='screen',
+        parameters=[
+            {"group": "arm_base"},
+            {"robot_name": "panda_husky"},
+            rtu_params
+        ]
+    )    
+
     # Reach parameters
     reachability_yaml = load_yaml(
-        "reachability_description", "config/fetch/reachability_params.yaml"
+        "reachability_description", "config/panda_husky/reachability_params.yaml"
     )
     reachability_params = {"reachability_params": reachability_yaml}
 
 
-    rviz_base = os.path.join(get_package_share_directory("robots_config"), "rviz")
-    rviz_full_config = os.path.join(rviz_base, "fetch.rviz")
-    rviz_node = Node(
-        package="rviz2",
-        executable="rviz2",
-        name="rviz2",
-        output="log",
-        arguments=["-d", rviz_full_config],
-        parameters=[]
-    )
-
-    # Publish TF
-    robot_state_publisher = Node(
-        package="robot_state_publisher",
-        executable="robot_state_publisher",
-        name="robot_state_publisher",
-        output="both",
-        parameters=[robot_description],
-    )
-    
-    # Joint State publisher
-    joint_publisher = Node(
-        package='joint_state_publisher',
-        executable='joint_state_publisher',
-        name='joint_state_publisher',
-        output='screen')
-
-    # Fetch
-    reach_gen = Node(
+    # Robot to task
+    app_get_reach_poses = Node(
         package='reachability_description',
-        executable='generate_reachability_node',
+        executable='app_generate_robot_reach_ee_poses',
         output='screen',
         parameters=[
             reachability_params,
             robot_description,
             robot_description_semantic,
-            {"chain_group_name": "arm_with_torso"}, # arm
-            {"robot_name": "fetch"},
-            {"plugin_name": "reachability_description::ReachGraphReuleaux"}              
+            {"chain_group_name": "arm_base"},
+            {"robot_name": "panda_husky"},
+            {"plugin_name": "reachability_description::ReachGraphReuleaux"}
         ]
     )    
 
 
     return LaunchDescription(
         [
-            rviz_node,
-            robot_state_publisher,
-            joint_publisher,
-            reach_gen
+            task_marker,
+            app_get_reach_poses
         ]
 
     )

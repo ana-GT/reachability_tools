@@ -10,6 +10,7 @@ set(DEPS
   std_msgs
   geometry_msgs
   sensor_msgs
+  vision_msgs
 )
 
 find_package(ament_cmake REQUIRED)
@@ -25,11 +26,13 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 "msg/ReachData.msg"
 "msg/ReachSample.msg"
 "msg/ReachGraph.msg"
+"msg/Param.msg"
 "msg/PlaceRobotSolution.msg"
 "srv/GetHandToUser.srv"
 "srv/SetRobotPose.srv"
 "srv/MoveRobotToTask.srv"
-DEPENDENCIES geometry_msgs std_msgs sensor_msgs
+"srv/GenerateReachPoses.srv"
+DEPENDENCIES geometry_msgs std_msgs sensor_msgs vision_msgs
 )
 
 

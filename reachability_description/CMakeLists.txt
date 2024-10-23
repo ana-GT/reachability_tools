@@ -64,15 +64,15 @@ target_link_libraries(reach_graph_aggregated ${PROJECT_NAME} ${OpenCV_LIBRARIES}
 
 ##############################################################################
 # Utilities to generate, load, estimate reachability data
-add_executable(generate_reachability_node src/generate_reachability_node.cpp)
+add_executable(generate_reachability_node tools/generate_reachability_node.cpp)
 target_link_libraries(generate_reachability_node ${PROJECT_NAME})
 ament_target_dependencies(generate_reachability_node ${DEPS})
 
-add_executable(load_reachability_node src/load_reachability_node.cpp)
+add_executable(load_reachability_node tools/load_reachability_node.cpp)
 target_link_libraries(load_reachability_node ${PROJECT_NAME})
 ament_target_dependencies(load_reachability_node ${DEPS})
 
-add_executable(estimate_reachability_limits_node src/estimate_reachability_limits_node.cpp)
+add_executable(estimate_reachability_limits_node tools/estimate_reachability_limits_node.cpp)
 target_link_libraries(estimate_reachability_limits_node ${PROJECT_NAME})
 ament_target_dependencies(estimate_reachability_limits_node ${DEPS})
 
@@ -90,6 +90,10 @@ ament_target_dependencies(app_robot_to_task ${DEPS})
 add_executable(app_robot_to_task_2 apps/robot_to_task_2.cpp)
 target_link_libraries(app_robot_to_task_2 reach_graph_aggregated ${PROJECT_NAME})
 ament_target_dependencies(app_robot_to_task_2 ${DEPS})
+
+add_executable(app_generate_robot_reach_ee_poses apps/generate_robot_reach_ee_poses.cpp)
+target_link_libraries(app_generate_robot_reach_ee_poses ${PROJECT_NAME})
+ament_target_dependencies(app_generate_robot_reach_ee_poses ${DEPS})
 
 
 add_executable(app_simulate_robot_base_motion apps/simulate_robot_base_motion.cpp)
@@ -111,6 +115,7 @@ install(TARGETS ${PROJECT_NAME}
   app_simulate_robot_base_motion
   app_robot_to_task
   app_robot_to_task_2
+  app_generate_robot_reach_ee_poses
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib

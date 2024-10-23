@@ -3,6 +3,7 @@
  */
 #include <reach_plugin_reuleaux/reach_graph_reuleaux.h>
 #include <reach_plugin_reuleaux/quaternion_discretization.h>
+#include <reachability_msgs/msg/param.hpp>
 
 using namespace reachability_description;
 
@@ -170,6 +171,17 @@ sensor_msgs::msg::PointCloud2 ReachGraphReuleaux::debugSamples(int _xi, int _yi,
   return cloud;
 }
 
+/**
+ * @function calculateMetric
+ */
+bool ReachGraphReuleaux::calculateMetric(reachability_msgs::msg::ReachData &_rdata)
+{ 
+  int N = params_.num_voxel_samples;
+  reachability_msgs::msg::Param metric;
+  metric.name = "reachable_voxels";
+  metric.value = (double) _rdata.samples.size() / (double) N;
+  _rdata.metrics.push_back(metric);
+}
 
 #include <pluginlib/class_list_macros.hpp>
 

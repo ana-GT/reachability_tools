@@ -54,7 +54,7 @@ def generate_launch_description():
     # Robot task UI node
     task_marker = Node(
         package='task_ui',
-        executable='robot_task_markers_node',
+        executable='markers_get_robot_base_node',
         output='screen',
         parameters=[
             {"group": "arm_base"},
@@ -87,6 +87,7 @@ def generate_launch_description():
             robot_description_semantic,
             {"chain_group_name": "arm_base"},
             {"robot_name": "panda_husky"},
+            {"plugin_name": "reachability_description::ReachGraphReuleaux"},
             rtu_params
         ]
     )    

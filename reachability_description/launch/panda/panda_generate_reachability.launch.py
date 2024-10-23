@@ -102,10 +102,11 @@ def generate_launch_description():
         executable='generate_reachability_node',
         output='screen',
         parameters=[reachability_params,
-            {"robot_description": robot_description_config.toxml()},
-            {"robot_description_semantic" : srdf_config},
+            robot_description,
+            robot_description_semantic,
             {"chain_group_name": "fr3_manipulator"},
-            {"robot_name": "fr3"}
+            {"robot_name": "fr3"},
+            {"plugin_name": "reachability_description::ReachGraphReuleaux"}
         ]
     )    
 
