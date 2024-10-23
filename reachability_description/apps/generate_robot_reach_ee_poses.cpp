@@ -13,6 +13,9 @@
 
 #include<reachability_msgs/srv/generate_reach_poses.hpp>
 
+#include <opencv2/core.hpp>
+#include <opencv2/flann.hpp>
+
 
 using namespace std::chrono_literals;
 
@@ -98,8 +101,81 @@ void handleSrv(const std::shared_ptr<reachability_msgs::srv::GenerateReachPoses:
   double xi, yi, zi;
   int center_index = rd_->getReachGraph(chain_group_)->worldToIndex(bbox.position.x, bbox.position.y, bbox.position.z);
   
+  // Min corner, max corner
+  Eigen::Vector3d bb_dim; bb_dim << 0.5*req->bbox.size.x, 0.5*req->bbox.size.y, 0.5*req->bbox.size.z; 
+  Eigen::Vector3d bb_min; bb_min << bbox.position.x - bb_dim(0), bbox.position.y - bb_dim(1), bbox.position.z - bb_dim(2);
+  Eigen::Vector3d bb_max; bb_max << bbox.position.x + bb_dim(0), bbox.position.y + bb_dim(1), bbox.position.z + bb_dim(2);
+  
+  int xli, yli, zli, xui, yui, zui;
+  rd_->getReachGraph(chain_group_)->worldToVertex(bb_min(0), bb_min(1), bb_min(2), xli, yli, zli);
+  rd_->getReachGraph(chain_group_)->worldToVertex(bb_max(0), bb_max(1), bb_max(2), xui, yui, zui);
+
+  RCLCPP_INFO(node_->get_logger(), "*** Bounding box: min: %f %f %f, max: %f %f %f", bb_min(0), bb_min(1), bb_min(2), bb_max(0), bb_max(1), bb_max(2));
+  RCLCPP_INFO(node_->get_logger(), "*** Bounding box Indices: min: %d %d %d, max: %d %d %d", xli, yli, zli, xui, yui, zui);
+
+  std::vector<reachability_msgs::msg::ReachData> rd_nn;
+  for(int xi = xli; xi <= xui; ++xi)
+    for(int yi = yli; yi <= yui; ++yi)
+       for(int zi = zli; zi <= zui; ++zi)
+       {
+          reachability_msgs::msg::ReachData rdi;
+          rdi = rd_->getReachGraph(chain_group_)->getState(xi, yi, zi);
+          if(rdi.state == reachability_msgs::msg::ReachData::FILLED)
+            rd_nn.push_back(rdi);
+       }
+  
   reachability_msgs::msg::ReachData rd_center = rd_->getReachGraph(chain_group_)->getState(center_index);
   RCLCPP_INFO(node_->get_logger(), "Voxel selected state: %d metric(%s): %f", rd_center.state, rd_center.metrics[0].name.c_str(),  rd_center.metrics[0].value);
+  RCLCPP_INFO(node_->get_logger(), "Within the bounding box: %d", rd_nn.size());
+  
+  // Check that these reachability poses are pointing to
+  
+  // Cluster
+  float nn_radius = 0.05*0.05;
+  int max_neighbors = 20;
+
+   //1. Get centers
+   cv::Mat points(rd_nn.size(), 1, CV_32FC3);
+   
+   cv::Mat labels;
+   std::vector<cv::Point3f> centers;
+
+   // 2. Fill points
+   for(int i = 0; i < rd_nn.size(); ++i)
+   {
+    Eigen::Vector3d p;
+    p << rd_nn[i].samples[0].pose.position.x, rd_nn[i].samples[0].pose.position.y,  rd_nn[i].samples[0].pose.position.z ;
+    points.at<cv::Vec3f>(i) = cv::Vec3f( (float)p(0), (float)p(1), (float)p(2));
+   }     
+
+   cv::kmeans(points, req->num_poses, labels,
+   cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::COUNT, 10, 1.0),
+   3, cv::KMEANS_PP_CENTERS, centers);
+
+   std::vector<geometry_msgs::msg::PoseStamped> ee_poses;
+   for(int i = 0; i < centers.size(); ++i)
+   {
+      // Get center
+      geometry_msgs::msg::PoseStamped pi;
+      pi.pose.position.x = centers[i].x;
+      pi.pose.position.y = centers[i].y;
+      pi.pose.position.z = centers[i].z;
+      // Z: direction from this origin to the center of BB
+      Eigen::Vector3d z_dir; z_dir << bbox.position.x - centers[i].x, bbox.position.y - centers[i].y, bbox.position.z - centers[i].z;
+      Eigen::Quaterniond q;
+      q = Eigen::Quaterniond::FromTwoVectors(Eigen::Vector3d(0,0,1), z_dir);
+      pi.pose.orientation.x = q.x(); 
+      pi.header.frame_id = rd_->getReachGraph(chain_group_)->getChainInfo().root_link;
+      
+      
+      //int res = rd_->getIKSolver(_chain_group)->CartToJnt(q_init, p_in, q_out, bounds);
+      
+      // Get pose
+      ee_poses.push_back(pi);
+   }
+  
+  res->ee_poses = ee_poses;
+  
   int num = rd_->getReachGraph(chain_group_)->getNumPoints();
   
   // Read goal poses

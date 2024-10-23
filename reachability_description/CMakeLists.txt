@@ -92,7 +92,7 @@ target_link_libraries(app_robot_to_task_2 reach_graph_aggregated ${PROJECT_NAME}
 ament_target_dependencies(app_robot_to_task_2 ${DEPS})
 
 add_executable(app_generate_robot_reach_ee_poses apps/generate_robot_reach_ee_poses.cpp)
-target_link_libraries(app_generate_robot_reach_ee_poses ${PROJECT_NAME})
+target_link_libraries(app_generate_robot_reach_ee_poses ${PROJECT_NAME} ${OpenCV_LIBRARIES})
 ament_target_dependencies(app_generate_robot_reach_ee_poses ${DEPS})
 
 
