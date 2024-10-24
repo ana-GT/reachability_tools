@@ -15,6 +15,7 @@
 
 #include <opencv2/core.hpp>
 #include <opencv2/flann.hpp>
+#include <tf2_kdl/tf2_kdl.h>
 
 
 using namespace std::chrono_literals;
@@ -114,6 +115,8 @@ void handleSrv(const std::shared_ptr<reachability_msgs::srv::GenerateReachPoses:
   RCLCPP_INFO(node_->get_logger(), "*** Bounding box Indices: min: %d %d %d, max: %d %d %d", xli, yli, zli, xui, yui, zui);
 
   std::vector<reachability_msgs::msg::ReachData> rd_nn;
+  int num = 0;
+  int valid = 0;
   for(int xi = xli; xi <= xui; ++xi)
     for(int yi = yli; yi <= yui; ++yi)
        for(int zi = zli; zi <= zui; ++zi)
@@ -121,24 +124,76 @@ void handleSrv(const std::shared_ptr<reachability_msgs::srv::GenerateReachPoses:
           reachability_msgs::msg::ReachData rdi;
           rdi = rd_->getReachGraph(chain_group_)->getState(xi, yi, zi);
           if(rdi.state == reachability_msgs::msg::ReachData::FILLED)
-            rd_nn.push_back(rdi);
-       }
+          {
+            num++;
+            for(int k = 0; k < rdi.samples.size(); ++k)
+            {
+               // Check if there are samples that point in the desired direction
+               Eigen::Quaterniond q;
+               q.x() = rdi.samples[k].pose.orientation.x;
+               q.y() = rdi.samples[k].pose.orientation.y;
+               q.z() = rdi.samples[k].pose.orientation.z;
+               q.w() = rdi.samples[k].pose.orientation.w;
+               Eigen::Matrix3d m; m = q.matrix();
+               Eigen::Vector3d z_dir;
+               z_dir = m.col(2);
+               
+               Eigen::Vector3d dir_to_bbox, dir_to_bbox_norm;
+               dir_to_bbox << bbox.position.x - rdi.samples[k].pose.position.x, bbox.position.y - rdi.samples[k].pose.position.y, bbox.position.z - rdi.samples[k].pose.position.z;
+               dir_to_bbox_norm = dir_to_bbox.normalized();
+               double ang;
+               ang = fabs(acos(z_dir.dot(dir_to_bbox_norm)));
+               //RCLCPP_INFO(node_->get_logger(), "** Angle[%d/%d]: %f zdir: %f %f %f Dir to box: %f %f %f", k, rdi.samples.size(), ang*180.0/M_PI, z_dir(0), z_dir(1), z_dir(2), dir_to_bbox(0), dir_to_bbox(1), dir_to_bbox(2));
+               if(ang < 45.0*M_PI/180.0)
+               {
+                  rd_nn.push_back(rdi);
+                  valid++;
+                  break;
+               }
+               
+            } // for k
+
+          } // if filled
+            
+       } // for zi
+  
+  RCLCPP_INFO(node_->get_logger(), "*-*-*-* Voxels in BB: %d, voxels used for NN: %d", num, valid);
   
   reachability_msgs::msg::ReachData rd_center = rd_->getReachGraph(chain_group_)->getState(center_index);
   RCLCPP_INFO(node_->get_logger(), "Voxel selected state: %d metric(%s): %f", rd_center.state, rd_center.metrics[0].name.c_str(),  rd_center.metrics[0].value);
   RCLCPP_INFO(node_->get_logger(), "Within the bounding box: %d", rd_nn.size());
-  
-  // Check that these reachability poses are pointing to
-  
-  // Cluster
-  float nn_radius = 0.05*0.05;
-  int max_neighbors = 20;
 
    //1. Get centers
-   cv::Mat points(rd_nn.size(), 1, CV_32FC3);
+   /*cv::Mat points(rd_center.samples.size(), 1, CV_32FC3);
+  
+  // Check that these reachability poses are pointing to
+  std::vector<geometry_msgs::msg::PoseStamped> ee_poses;
+  for(int i = 0; i < rd_center.samples.size(); ++i)
+  {
+    Eigen::Vector3d p;
+    p << rd_center.samples[i].pose.position.x, rd_center.samples[i].pose.position.y,  rd_center.samples[i].pose.position.z ;
+    RCLCPP_INFO(node_->get_logger(), "Point to show: %f %f %f **************", p(0), p(1), p(2));
+      // Get center
+      geometry_msgs::msg::PoseStamped pi;
+      pi.pose.position.x = p(0);
+      pi.pose.position.y = p(1);
+      pi.pose.position.z = p(2);
+      // Z: direction from this origin to the center of BB
+      pi.pose.orientation = rd_center.samples[i].pose.orientation;
+      pi.header.frame_id = rd_->getReachGraph(chain_group_)->getChainInfo().root_link;
+            
+      //int res = rd_->getIKSolver(_chain_group)->CartToJnt(q_init, p_in, q_out, bounds);
+      
+      // Get pose
+      ee_poses.push_back(pi);
+    
+  }*/
+  
+  
    
    cv::Mat labels;
    std::vector<cv::Point3f> centers;
+   cv::Mat points(rd_nn.size(), 1, CV_32FC3);
 
    // 2. Fill points
    for(int i = 0; i < rd_nn.size(); ++i)
@@ -147,12 +202,12 @@ void handleSrv(const std::shared_ptr<reachability_msgs::srv::GenerateReachPoses:
     p << rd_nn[i].samples[0].pose.position.x, rd_nn[i].samples[0].pose.position.y,  rd_nn[i].samples[0].pose.position.z ;
     points.at<cv::Vec3f>(i) = cv::Vec3f( (float)p(0), (float)p(1), (float)p(2));
    }     
-
+  
    cv::kmeans(points, req->num_poses, labels,
    cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::COUNT, 10, 1.0),
    3, cv::KMEANS_PP_CENTERS, centers);
-
    std::vector<geometry_msgs::msg::PoseStamped> ee_poses;
+   std::vector<sensor_msgs::msg::JointState> jss;
    for(int i = 0; i < centers.size(); ++i)
    {
       // Get center
@@ -165,18 +220,39 @@ void handleSrv(const std::shared_ptr<reachability_msgs::srv::GenerateReachPoses:
       Eigen::Quaterniond q;
       q = Eigen::Quaterniond::FromTwoVectors(Eigen::Vector3d(0,0,1), z_dir);
       pi.pose.orientation.x = q.x(); 
+      pi.pose.orientation.y = q.y();
+      pi.pose.orientation.z = q.z();
+      pi.pose.orientation.w = q.w(); 
+
       pi.header.frame_id = rd_->getReachGraph(chain_group_)->getChainInfo().root_link;
       
-      
-      //int res = rd_->getIKSolver(_chain_group)->CartToJnt(q_init, p_in, q_out, bounds);
-      
-      // Get pose
-      ee_poses.push_back(pi);
+      KDL::JntArray q_init, q_out;
+        
+      // TODO: Do this better!  
+      q_init = vectorToJntArray(rd_center.samples[0].best_config);
+
+      KDL::Twist bounds = KDL::Twist::Zero();
+      KDL::Frame p_in;
+      //tf2::transformEigenToKDL(Texpected, p_in);
+      tf2::fromMsg(pi.pose, p_in);
+      if(rd_->getIKSolver(chain_group_)->CartToJnt(q_init, p_in, q_out, bounds) > 0)
+      {
+        // Get pose
+        sensor_msgs::msg::JointState js;
+        js.name = rd_->getReachGraph(chain_group_)->getChainInfo().joint_names;
+        js.position.resize(js.name.size());
+        for(int k = 0; k < js.name.size(); ++k)
+          js.position[k] = q_out(k);
+        
+        ee_poses.push_back(pi);
+        jss.push_back(js); 
+      }  
    }
   
   res->ee_poses = ee_poses;
+  res->joint_states = jss;
   
-  int num = rd_->getReachGraph(chain_group_)->getNumPoints();
+  //int num = rd_->getReachGraph(chain_group_)->getNumPoints();
   
   // Read goal poses
   Eigen::Isometry3d Tgs;

@@ -16,6 +16,7 @@
   <depend>eigen</depend>
   <depend>tf2_eigen</depend>
   <depend>tf2_eigen_kdl</depend>
+  <depend>tf2_kdl</depend>
   <depend>kdl_parser</depend>
   <depend>trac_ik_lib</depend>
   <depend>urdf</depend>

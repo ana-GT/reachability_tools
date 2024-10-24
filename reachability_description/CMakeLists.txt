@@ -15,6 +15,7 @@ set(DEPS
   pcl_conversions
   tf2_eigen
   tf2_eigen_kdl
+  tf2_kdl
   reachability_msgs
   generate_parameter_library
 )

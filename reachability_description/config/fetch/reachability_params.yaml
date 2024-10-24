@@ -28,5 +28,5 @@ arm_with_torso:
   z_max:  1.95
 
   display_reachability:
-    plane: "XZ+"
-    plane_dist: -0.40
+    plane: "XY+"
+    plane_dist: 0.60
