@@ -1,6 +1,6 @@
 #include <reachability_description/reachability_description.h>
-#include<reachability_msgs/srv/move_robot_to_task.hpp>
-#include <reachability_msgs/srv/set_robot_pose.hpp>
+#include <robot_sim_msgs/srv/move_robot_to_task.hpp>
+#include <robot_sim_msgs/srv/set_robot_pose.hpp>
 #include <tf2_eigen_kdl/tf2_eigen_kdl.hpp>
 #include <algorithm>
 
@@ -139,12 +139,12 @@ bool setServices()
 {
     using std::placeholders::_1;
     using std::placeholders::_2;
-    srv_ = nh_->create_service<reachability_msgs::srv::MoveRobotToTask>("robot_to_task", 
+    srv_ = nh_->create_service<robot_sim_msgs::srv::MoveRobotToTask>("robot_to_task", 
                 std::bind(&RobotToTask::handleSrv, this, _1, _2));
 
     pub_js_ = nh_->create_publisher<sensor_msgs::msg::JointState>("joint_state_command", 10);
 
-    client_move_base_ = nh_->create_client<reachability_msgs::srv::SetRobotPose>("set_robot_pose");
+    client_move_base_ = nh_->create_client<robot_sim_msgs::srv::SetRobotPose>("set_robot_pose");
 
     // Get the indices of the highest
     int num = rd_->getReachGraph(chain_group_)->getNumPoints();
@@ -173,7 +173,7 @@ void moveBase(const geometry_msgs::msg::PoseStamped &_pose)
 {
   RCLCPP_WARN(nh_->get_logger(), "Move base received request to move to %f %f %f ", 
               _pose.pose.position.x, _pose.pose.position.y, _pose.pose.position.z);
-  auto request = std::make_shared<reachability_msgs::srv::SetRobotPose::Request>();
+  auto request = std::make_shared<robot_sim_msgs::srv::SetRobotPose::Request>();
   request->pose = _pose;
 
   while (!client_move_base_->wait_for_service(1s)) {
@@ -189,8 +189,8 @@ void moveBase(const geometry_msgs::msg::PoseStamped &_pose)
 }
 
 // Handle service
-void handleSrv(const std::shared_ptr<reachability_msgs::srv::MoveRobotToTask::Request> req,
-               std::shared_ptr<reachability_msgs::srv::MoveRobotToTask::Response> res)
+void handleSrv(const std::shared_ptr<robot_sim_msgs::srv::MoveRobotToTask::Request> req,
+               std::shared_ptr<robot_sim_msgs::srv::MoveRobotToTask::Response> res)
 {
     RCLCPP_INFO(nh_->get_logger(), "Received service to send robot to task!!!");
 
@@ -353,10 +353,10 @@ int getSample(const std::vector<reachability_msgs::msg::ReachSample> &_samples, 
  rclcpp::Node::SharedPtr nh_;
  std::shared_ptr<reachability_description::ReachabilityDescription> rd_;
  
- rclcpp::Service<reachability_msgs::srv::MoveRobotToTask>::SharedPtr srv_;
+ rclcpp::Service<robot_sim_msgs::srv::MoveRobotToTask>::SharedPtr srv_;
  rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr pub_js_;
  // Client to move base
- rclcpp::Client<reachability_msgs::srv::SetRobotPose>::SharedPtr client_move_base_;
+ rclcpp::Client<robot_sim_msgs::srv::SetRobotPose>::SharedPtr client_move_base_;
 
 
  std::vector<int> higher_indices_;
@@ -371,7 +371,6 @@ int getSample(const std::vector<reachability_msgs::msg::ReachSample> &_samples, 
 
 
 ////////////////////////////////////
-
 int main(int argc, char* argv[])
 {
  rclcpp::init(argc, argv);

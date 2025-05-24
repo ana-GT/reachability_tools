@@ -17,33 +17,32 @@ double modulo(const double &_val, const double &_factor)
   return new_val; 
 }
 
+const auto logger = rclcpp::get_logger("reuleaux_plugin");
+
+
 ReachGraphReuleaux::ReachGraphReuleaux()
 {}
 
 ReachGraphReuleaux::~ReachGraphReuleaux()
 {}
 
-void ReachGraphReuleaux::generateSamples(const int &_xi, const int &_yi, const int &_zi, 
+void ReachGraphReuleaux::generateSamples(const double &_x, const double &_y, const double &_z, 
                                          std::vector<Eigen::Isometry3d> &_frames)
 {
-  this->createTesseractSamples(_xi, _yi, _zi, _frames);
-  //this->createSphereSamplesVoxel(_xi, _yi, _zi, _frames);
+  this->createTesseractSamples(_x, _y, _z, _frames);
+  //this->createSphereSamplesVoxel(_x, _y, _z, _frames);
 }
 
 /**
  * @brief createSphereSamplesVoxel
  */
-void ReachGraphReuleaux::createSphereSamplesVoxel(const int &_xi, 
-                                const int &_yi, 
-                                const int &_zi,
+void ReachGraphReuleaux::createSphereSamplesVoxel(const double &_x, 
+                                const double &_y, 
+                                const double &_z,
                                 std::vector<Eigen::Isometry3d> &_frames) const
 {
   _frames.clear();
-
-  double x, y, z;
   double dx, dy, dz;
-
-  vertexToWorld(_xi, _yi, _zi, x, y, z);
 
   int N = params_.num_voxel_samples;
 
@@ -73,7 +72,7 @@ void ReachGraphReuleaux::createSphereSamplesVoxel(const int &_xi,
    qz.setFromTwoVectors(z_unit, z_tcp);
 
    Eigen::Isometry3d p; p.setIdentity();
-   p.translation() = Eigen::Vector3d(x + dx,y + dy,z + dz);
+   p.translation() = Eigen::Vector3d(_x + dx, _y + dy, _z + dz);
    p.linear() = qz.toRotationMatrix();
 
    _frames.push_back(p);
@@ -85,17 +84,14 @@ void ReachGraphReuleaux::createSphereSamplesVoxel(const int &_xi,
 /**
  * @brief createTesseractSamples
  */
-void ReachGraphReuleaux::createTesseractSamples(const int &_xi, 
-                                                const int &_yi, 
-                                                const int &_zi,
+void ReachGraphReuleaux::createTesseractSamples(const double &_x, 
+                                                const double &_y, 
+                                                const double &_z,
                                                 std::vector<Eigen::Isometry3d> &_frames) const
 {
   _frames.clear();
 
-  double x, y, z;
   double dx, dy, dz;
-
-  vertexToWorld(_xi, _yi, _zi, x, y, z);
 
   int N = params_.num_voxel_samples;
 
@@ -115,7 +111,7 @@ void ReachGraphReuleaux::createTesseractSamples(const int &_xi,
   for(int k = 0; k < N; ++k)
   {
    Eigen::Isometry3d p; p.setIdentity();
-   p.translation() = Eigen::Vector3d(x, y, z);
+   p.translation() = Eigen::Vector3d(_x, _y, _z);
    p.linear() = qs[k].toRotationMatrix();
 
    _frames.push_back(p);
@@ -150,7 +146,11 @@ sensor_msgs::msg::PointCloud2 ReachGraphReuleaux::debugSamples(int _xi, int _yi,
 
   // Enter vertices in the graph
   std::vector<Eigen::Isometry3d> frames;
-  createSphereSamplesVoxel(_xi, _yi, _zi, frames);
+
+  double x, y, z;
+  vertexToWorld(_xi, _yi, _zi, x, y, z);
+  createSphereSamplesVoxel(x, y, z, frames);
+  
   for( int i = 0; i < N; ++i ) { 
       float xd, yd, zd;
       xd = (float)frames[i].translation()(0);
@@ -181,6 +181,8 @@ bool ReachGraphReuleaux::calculateMetric(reachability_msgs::msg::ReachData &_rda
   metric.name = "reachable_voxels";
   metric.value = (double) _rdata.samples.size() / (double) N;
   _rdata.metrics.push_back(metric);
+  
+  return _rdata.samples.size() > 0;
 }
 
 #include <pluginlib/class_list_macros.hpp>

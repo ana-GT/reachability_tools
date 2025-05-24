@@ -1,7 +1,7 @@
 /**
  * @file Graph.cpp
  * @author A. Huaman Q.
- * @date 2012 / 08/ 16
+ * @date 2025 / 05 / 22
  */
 #include <reachability_description/reach_graph.h>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
@@ -205,6 +205,17 @@ void ReachGraph::indexToVertex( const int &_ind,
 void ReachGraph::setState( int _xi, int _yi, int _zi, const reachability_msgs::msg::ReachData &_rd )
 {
     points_[ref(_xi, _yi, _zi)] = _rd;
+}
+
+/**
+ * @function generateSamples
+ */
+void ReachGraph::generateSamples(const int &_xi, const int &_yi, const int &_zi, 
+                     std::vector<Eigen::Isometry3d> &_frames)
+{
+  double x, y, z;
+  vertexToWorld(_xi, _yi, _zi, x, y, z);
+  generateSamples(x, y, z, _frames);  
 }
 
 /**

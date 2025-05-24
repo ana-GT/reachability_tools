@@ -15,7 +15,8 @@ KDL::Frame makeKDLFrame(const double &_x, const double &_y, const double &_z,
 
 std::vector<double> jntArrayToVector(const KDL::JntArray &_js);
 KDL::JntArray vectorToJntArray(const std::vector<double> &_vec);
-
+sensor_msgs::msg::JointState vectorToJointState(const std::vector<double> &_vec, 
+                                                const reachability_msgs::msg::ChainInfo &_ci);
 Eigen::Isometry3d getPlanarTransform(const double &_x, const double &_y, const double &_yaw);
 
 sensor_msgs::msg::JointState jntArrayToMsg(const KDL::JntArray &_q, 

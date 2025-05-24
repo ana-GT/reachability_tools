@@ -54,6 +54,20 @@ KDL::JntArray vectorToJntArray(const std::vector<double> &_vec)
   return q;
 }
 
+sensor_msgs::msg::JointState vectorToJointState(const std::vector<double> &_vec, 
+                                                const reachability_msgs::msg::ChainInfo &_ci)
+{
+  sensor_msgs::msg::JointState js;
+  
+  if(_ci.joint_names.size() == _vec.size())
+  { 
+    js.name = _ci.joint_names;
+    js.position = _vec;
+  }
+  
+  return js;
+}
+
 /**
  * 
  */

@@ -3,6 +3,8 @@ project(robot_unit)
 
 add_compile_options(-std=c++17)
 
+find_package(ament_cmake REQUIRED)
+find_package(fcl REQUIRED)
 set(DEPS
     rclcpp 
     urdf
@@ -24,21 +26,10 @@ foreach(dependency IN ITEMS ${DEPS})
   find_package(${dependency} REQUIRED)
 endforeach()
 
-# FCL
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(LIBFCL REQUIRED "fcl>=0.5.0")
-# replace LIBFCL_LIBRARIES with full paths to the libraries
-set(LIBFCL_LIBRARIES_FULL "")
-foreach(LIBFCL_LIBRARY ${LIBFCL_LIBRARIES})
-  find_library(${LIBFCL_LIBRARY}_LIB ${LIBFCL_LIBRARY} ${LIBFCL_LIBRARY_DIRS})
-  list(APPEND LIBFCL_LIBRARIES_FULL ${${LIBFCL_LIBRARY}_LIB})
-endforeach()
-set(LIBFCL_LIBRARIES "${LIBFCL_LIBRARIES_FULL}")
-
 
 include_directories(
   include
-  ${LIBFCL_INCLUDE_DIRS}
+#  ${LIBFCL_INCLUDE_DIRS}
 )
 
 add_library(treefksolverpos_recursive SHARED src/treefksolverpos_recursive.cpp)
@@ -54,12 +45,12 @@ add_library(${PROJECT_NAME} SHARED
   src/fast_allowed_collision_matrix.cpp
 )
 
-target_link_libraries(${PROJECT_NAME} treefksolverpos_recursive)
+target_link_libraries(${PROJECT_NAME} treefksolverpos_recursive fcl)
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
   )
-ament_target_dependencies( ${PROJECT_NAME} ${DEPS} LIBFCL)
+ament_target_dependencies( ${PROJECT_NAME} ${DEPS})
 
 ############# Tests ###############
 #add_executable(test_env_collision tests/test_env_collision.cpp)
@@ -96,13 +87,12 @@ ament_export_libraries(
     ${PROJECT_NAME} treefksolverpos_recursive
 )
 
-##ament_export_targets(
-##  export_${PROJECT_NAME}
-##)
+ament_export_targets(
+  export_${PROJECT_NAME}
+  HAS_LIBRARY_TARGET
+)
 
-ament_export_dependencies(
-  ${DEPS}
-  )
+ament_export_dependencies(${DEPS} fcl)
 
 ament_export_include_directories(
   include

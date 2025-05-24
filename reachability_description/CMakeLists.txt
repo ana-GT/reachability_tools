@@ -5,8 +5,9 @@ if(CMAKE_COMPILER_IS_GNUCXX OR ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang"))
     set(CMAKE_CXX_FLAGS "-std=c++17 ${CMAKE_CXX_FLAGS}")
 endif()
 
+find_package(ament_cmake REQUIRED)
+
 set(DEPS 
-  ament_cmake
   rclcpp
   trac_ik_lib
   urdf
@@ -17,7 +18,9 @@ set(DEPS
   tf2_eigen_kdl
   tf2_kdl
   reachability_msgs
+  robot_sim_msgs
   generate_parameter_library
+  pluginlib
 )
 
 foreach(dependency IN ITEMS ${DEPS})
@@ -25,19 +28,6 @@ foreach(dependency IN ITEMS ${DEPS})
 endforeach()
 
 find_package(Eigen3 REQUIRED NO_MODULE)
-
-# FCL
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(LIBFCL REQUIRED "fcl>=0.5.0")
-# replace LIBFCL_LIBRARIES with full paths to the libraries
-set(LIBFCL_LIBRARIES_FULL "")
-foreach(LIBFCL_LIBRARY ${LIBFCL_LIBRARIES})
-  find_library(${LIBFCL_LIBRARY}_LIB ${LIBFCL_LIBRARY} ${LIBFCL_LIBRARY_DIRS})
-  list(APPEND LIBFCL_LIBRARIES_FULL ${${LIBFCL_LIBRARY}_LIB})
-endforeach()
-set(LIBFCL_LIBRARIES "${LIBFCL_LIBRARIES_FULL}")
-
-# Find
 find_package(OpenCV REQUIRED)
 
 include_directories(
@@ -57,7 +47,7 @@ add_library(${PROJECT_NAME} SHARED
             src/reach_serialization.cpp
             src/reach_utilities.cpp)
 target_link_libraries(${PROJECT_NAME} ${REACH_PARAM_LIB})
-ament_target_dependencies( ${PROJECT_NAME} ${DEPS} LIBFCL)
+ament_target_dependencies( ${PROJECT_NAME} ${DEPS})
 
 add_library(reach_graph_aggregated src/reach_graph_aggregated.cpp)
 target_link_libraries(reach_graph_aggregated ${PROJECT_NAME} ${OpenCV_LIBRARIES})
@@ -96,11 +86,6 @@ add_executable(app_generate_robot_reach_ee_poses apps/generate_robot_reach_ee_po
 target_link_libraries(app_generate_robot_reach_ee_poses ${PROJECT_NAME} ${OpenCV_LIBRARIES})
 ament_target_dependencies(app_generate_robot_reach_ee_poses ${DEPS})
 
-
-add_executable(app_simulate_robot_base_motion apps/simulate_robot_base_motion.cpp)
-target_link_libraries(app_simulate_robot_base_motion ${PROJECT_NAME})
-ament_target_dependencies(app_simulate_robot_base_motion ${DEPS})
-
 install(
   DIRECTORY include/
   DESTINATION include
@@ -113,7 +98,6 @@ install(TARGETS ${PROJECT_NAME}
   load_reachability_node 
   estimate_reachability_limits_node
   app_hand_to_user
-  app_simulate_robot_base_motion
   app_robot_to_task
   app_robot_to_task_2
   app_generate_robot_reach_ee_poses

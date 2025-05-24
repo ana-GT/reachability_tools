@@ -1,5 +1,5 @@
 #include <reachability_description/reachability_description.h>
-#include<reachability_msgs/srv/move_robot_to_task.hpp>
+#include<robot_sim_msgs/srv/move_robot_to_task.hpp>
 #include <tf2_eigen_kdl/tf2_eigen_kdl.hpp>
 #include <algorithm>
 
@@ -59,7 +59,7 @@ bool setServices()
 {
     using std::placeholders::_1;
     using std::placeholders::_2;
-    srv_ = nh_->create_service<reachability_msgs::srv::MoveRobotToTask>("robot_to_task", 
+    srv_ = nh_->create_service<robot_sim_msgs::srv::MoveRobotToTask>("robot_to_task", 
                 std::bind(&RobotToTask::handleSrv, this, _1, _2));
 
     pub_floor_cloud_ = nh_->create_publisher<sensor_msgs::msg::PointCloud2>("floor_cloud", 10);
@@ -83,8 +83,8 @@ bool setServices()
 }
 
 // Handle service
-void handleSrv(const std::shared_ptr<reachability_msgs::srv::MoveRobotToTask::Request> req,
-               std::shared_ptr<reachability_msgs::srv::MoveRobotToTask::Response> res)
+void handleSrv(const std::shared_ptr<robot_sim_msgs::srv::MoveRobotToTask::Request> req,
+               std::shared_ptr<robot_sim_msgs::srv::MoveRobotToTask::Response> res)
 {
 
   if(req->tcp_poses.empty())
@@ -134,7 +134,7 @@ void handleSrv(const std::shared_ptr<reachability_msgs::srv::MoveRobotToTask::Re
  * @function solutionsToMsg 
  */
 void solutionsToMsg(const std::vector<PlaceSol> &_solutions,
-                    std::vector<reachability_msgs::msg::PlaceRobotSolution> &_msg)
+                    std::vector<robot_sim_msgs::msg::PlaceRobotSolution> &_msg)
 {
   // Clean up
   _msg.clear();
@@ -142,7 +142,7 @@ void solutionsToMsg(const std::vector<PlaceSol> &_solutions,
   // Fill message
   for(int i = 0; i < _solutions.size(); ++i)
   {
-    reachability_msgs::msg::PlaceRobotSolution prs;
+    robot_sim_msgs::msg::PlaceRobotSolution prs;
 
     prs.base_pose.pose = tf2::toMsg(_solutions[i].Twb);
     prs.base_pose.header.frame_id = "world";
@@ -299,7 +299,7 @@ void publishCloud(const std::vector<Eigen::Isometry3d> &_points,
  std::shared_ptr<reachability_description::ReachabilityDescription> rd_;
  ReachGraphAggregated rga_;
 
- rclcpp::Service<reachability_msgs::srv::MoveRobotToTask>::SharedPtr srv_;
+ rclcpp::Service<robot_sim_msgs::srv::MoveRobotToTask>::SharedPtr srv_;
  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_floor_cloud_;
  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub_floor_points_;
 

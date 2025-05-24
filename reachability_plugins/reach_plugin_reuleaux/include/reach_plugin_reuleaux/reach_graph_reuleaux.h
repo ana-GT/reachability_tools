@@ -17,7 +17,7 @@ class ReachGraphReuleaux : public reachability_description::ReachGraph {
   ReachGraphReuleaux();
   ~ReachGraphReuleaux();
 
-  void generateSamples(const int &_xi, const int &_yi, const int &_zi, std::vector<Eigen::Isometry3d> &_frames) override;
+  void generateSamples(const double &_xi, const double &_yi, const double &_zi, std::vector<Eigen::Isometry3d> &_frames) override;
   bool calculateMetric(reachability_msgs::msg::ReachData &_rdata) override;
 
   sensor_msgs::msg::PointCloud2 debugSamples(int _xi, int _yi, int _zi);
@@ -25,14 +25,14 @@ class ReachGraphReuleaux : public reachability_description::ReachGraph {
 
   protected:
 
-  void createSphereSamplesVoxel(const int &_xi, 
-                                const int &_yi, 
-                                const int &zi,
+  void createSphereSamplesVoxel(const double &_x, 
+                                const double &_y, 
+                                const double &z,
                                 std::vector<Eigen::Isometry3d> &_frames) const;
 
-  void createTesseractSamples(const int &_xi, 
-                              const int &_yi, 
-                              const int &_zi,
+  void createTesseractSamples(const double &_x, 
+                              const double &_y, 
+                              const double &_z,
                               std::vector<Eigen::Isometry3d> &_frames) const;
 
 

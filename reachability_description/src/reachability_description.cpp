@@ -14,6 +14,8 @@
 namespace reachability_description
 {
 
+const auto logger = rclcpp::get_logger("reachability_description");
+
 /**
  * @function ReachabilityDescription
  * @brief Constructor 
@@ -35,13 +37,13 @@ ReachabilityDescription::~ReachabilityDescription()
 
 /**
  * @function initialize
- * @brief Well, initialize
+ * @brief Read robot's group information and creates RobotEntity() and RobotCollisionObject()
  */
 bool ReachabilityDescription::initialize(const std::string &_robot_name)
 {
   robot_name_ = _robot_name;
 
-  RCLCPP_WARN(node_->get_logger(), "Initialize - getting parameters");
+  RCLCPP_WARN(logger, "Initialize - getting parameters");
   // Declare parameters
   if(!node_->has_parameter("robot_description"))
     node_->declare_parameter("robot_description", std::string(""));
@@ -59,7 +61,7 @@ bool ReachabilityDescription::initialize(const std::string &_robot_name)
     
   if(plugin_name_.empty())
   {
-     RCLCPP_ERROR(node_->get_logger(), "'plugin_name' parameter not set!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+     RCLCPP_ERROR(logger, "'plugin_name' parameter not set!");
      return false;
   }
 
@@ -79,8 +81,290 @@ bool ReachabilityDescription::initialize(const std::string &_robot_name)
   return true;
 }
 
+/**
+ * @function initializeGroup
+ */
+bool ReachabilityDescription::initializeGroup(const std::string &_chain_group)
+{
+  // Parameters
+  if(params_.find(_chain_group) == params_.end())
+    loadParams(_chain_group, params_[_chain_group]);
+
+  if(chain_info_.find(_chain_group) == chain_info_.end())
+    addKinematicSolvers(_chain_group);
+
+   RCLCPP_WARN(logger, "Generate reach data for robot %s, group: %s, min: (%f %f %f), max: (%f %f %f), res: %f, # voxel samples: %ld",
+   robot_name_.c_str(), _chain_group.c_str(), 
+   params_[_chain_group].x_min, params_[_chain_group].y_min, params_[_chain_group].z_min, 
+   params_[_chain_group].x_max, params_[_chain_group].y_max, params_[_chain_group].z_max, 
+   params_[_chain_group].voxel_resolution, params_[_chain_group].voxel_num_samples);
+
+  // Init reach graph
+  reachability_msgs::msg::ReachData reach_default;
+  reach_default.state = reachability_msgs::msg::ReachData::NO_FILLED;
+
+  if(!initializeReachGraph(reach_graph_[_chain_group], chain_info_[_chain_group], 
+                 params_[_chain_group].x_min, params_[_chain_group].y_min, params_[_chain_group].z_min, 
+                 params_[_chain_group].x_max, params_[_chain_group].y_max, params_[_chain_group].z_max,
+	         params_[_chain_group].voxel_resolution, params_[_chain_group].voxel_num_samples, reach_default ))
+     return false;	         
+
+  return true;
+}
+
+/**
+ * @function calculateReachabilityPoint
+ */
+reachability_msgs::msg::ReachData ReachabilityDescription::calculateReachabilityPoint(double _x, double _y, double _z,
+                                          const std::string &_chain_group)
+{
+  KDL::JntArray q_init;
+  q_init.data = Eigen::VectorXd::Zero( chain_info_[_chain_group].joint_names.size() );
+  return calculateReachabilityPoint(reach_graph_[_chain_group], _x, _y, _z,
+         ik_solver_[_chain_group], chain_info_[_chain_group], rco_, q_init);
+}
+
+/**
+ * @function generateDescription 
+ */
+bool ReachabilityDescription::generateDescription(const std::string &_chain_group)
+{
+  double x_min, y_min, z_min;
+  double x_max, y_max, z_max;
+  double x_mid, y_mid, z_mid;
+
+  x_min = reach_graph_[_chain_group]->getMinX();
+  x_max = reach_graph_[_chain_group]->getMaxX();  
+  x_mid = ( x_min + x_max )*0.5;
+  
+  y_min = reach_graph_[_chain_group]->getMinY();
+  y_max = reach_graph_[_chain_group]->getMaxY();
+  y_mid = ( y_min + y_max )*0.5;
+  
+  z_min = reach_graph_[_chain_group]->getMinZ();
+  z_max = reach_graph_[_chain_group]->getMaxZ();
+  z_mid = ( z_min + z_max )*0.5;
+  
+  std::map<std::string, KDL::JntArray > joint_configs;
+  for(auto jc :  params_[_chain_group].ik_start_configs)
+    re_->getChainGroupState(_chain_group, jc, joint_configs[jc]);
+
+  // Get the FK for these joint configs
+  std::map<std::string, KDL::Frame> fk_poses;
+  for(auto ji : joint_configs)
+    fk_solver_[_chain_group]->JntToCart(ji.second, fk_poses[ji.first]);
+  
+  
+
+ std::thread to1_( &ReachabilityDescription::reach_calc, this, 
+                  x_min, y_min, z_min, 
+                  x_mid, y_mid, z_max, 
+                  chain_info_[_chain_group], 
+                  params_[_chain_group].ik_max_time, params_[_chain_group].ik_epsilon, stringToType(params_[_chain_group].ik_type), 
+                  joint_configs, fk_poses);
+ std::thread to2_( &ReachabilityDescription::reach_calc, this, 
+                  x_min, y_mid, z_min, 
+                  x_mid, y_max, z_max, 
+                  chain_info_[_chain_group], 
+                  params_[_chain_group].ik_max_time, params_[_chain_group].ik_epsilon, stringToType(params_[_chain_group].ik_type), 
+                  joint_configs, fk_poses);
+ std::thread to3_( &ReachabilityDescription::reach_calc, this, 
+                  x_mid, y_min, z_min, 
+                  x_max, y_mid, z_max, 
+                  chain_info_[_chain_group], 
+                  params_[_chain_group].ik_max_time, params_[_chain_group].ik_epsilon, stringToType(params_[_chain_group].ik_type), 
+                  joint_configs, fk_poses);
+ std::thread to4_( &ReachabilityDescription::reach_calc, this, 
+                  x_mid, y_mid, z_min, 
+                  x_max, y_max, z_max, 
+                  chain_info_[_chain_group], 
+                  params_[_chain_group].ik_max_time, params_[_chain_group].ik_epsilon, stringToType(params_[_chain_group].ik_type), 
+                  joint_configs, fk_poses);
+
+ to1_.join();
+ to2_.join();
+ to3_.join();
+ to4_.join();
+
+ return true;
+}
+
+/**
+ * @function viewDescription 
+ */
+bool ReachabilityDescription::viewDescription(const std::string &_chain_group)
+{
+  if(reach_graph_.find(_chain_group) == reach_graph_.end())
+    return false;
+
+  std::string plane = params_[_chain_group].display_reachability.plane;
+  double plane_dist = params_[_chain_group].display_reachability.plane_dist;
+
+  sensor_msgs::msg::PointCloud2 msg;
+  msg = reach_graph_[_chain_group]->getPCD(plane, plane_dist);
+  //msg = reach_graph_->getPCDHigherThan(0.2);
+
+  rclcpp::Rate r(1.0);
+  for(unsigned int i = 0; i < 10; ++i)
+  {
+    pub_reach_->publish(msg);
+    r.sleep();
+    rclcpp::spin_some(node_);
+  }
+
+  return true;
+}
+
+/**
+ * @function storeDescription
+ */
+bool ReachabilityDescription::loadDescription(const std::string &_chain_group)
+{
+  if(reach_graph_.find(_chain_group) != reach_graph_.end())
+  {
+    RCLCPP_INFO(logger, "Reach description for %s will not be loaded  because it already exists", 
+                _chain_group.c_str());
+    return false;
+  }
+
+  std::string filename = generateDefaultReachGroupName(_chain_group);
+  RCLCPP_INFO(logger, "Trying to load from file: %s", filename.c_str());
+  reachability_msgs::msg::ReachGraph msg;
+  
+  ReachSerial<reachability_msgs::msg::ReachGraph> reach_serial;
+
+  bool b = reach_serial.readFromDisk(filename, msg);
+
+  if(!b)
+    return false;
+
+  // Load ReachData with message
+  return initializeReachGraph(reach_graph_[_chain_group], msg);
+}
+
+
+/**
+ * @function storeDescription
+ */
+bool ReachabilityDescription::storeDescription(const std::string &_chain_group)
+{
+  if(reach_graph_.find(_chain_group) == reach_graph_.end())
+  {
+    RCLCPP_INFO(logger, "Cannot store reach description for %s . It is not generated / loaded ", 
+                _chain_group.c_str());
+    return false;
+  }
+
+  std::string filename = generateDefaultReachGroupName(_chain_group);
+  
+  RCLCPP_WARN(logger, "Storing description for robot %s and group %s in %s", 
+              robot_name_.c_str(), _chain_group.c_str(), filename.c_str());
+
+  reachability_msgs::msg::ReachGraph msg;
+  reach_graph_[_chain_group]->toMsg(msg);
+  
+  ReachSerial<reachability_msgs::msg::ReachGraph> reach_serial;
+  return reach_serial.writeToDisk(msg, filename);
+}
+
+
+
+//////////////////////////////////////////
+// GETTERS
+//////////////////////////////////////////
+
+/**
+ * @function getReachabilityData 
+ */
+bool ReachabilityDescription::getReachabilityData(const std::string &_chain_group,
+                                                  const double &_x, const double &_y, const double &_z, 
+                                                  reachability_msgs::msg::ReachData &_data)
+{
+  if(reach_graph_.find(_chain_group) == reach_graph_.end() )
+    return false;
+
+  int xi, yi, zi;
+  if(!reach_graph_[_chain_group]->worldToVertex(_x, _y, _z, xi, yi, zi))
+    return false;
+
+  reachability_msgs::msg::ReachData rdata = reach_graph_[_chain_group]->getState(xi, yi, zi);
+  RCLCPP_WARN(logger, "Got reachability data: from %f %f %f to %d %d %d, samples: %ld", 
+              _x, _y, _z, xi, yi, zi, rdata.samples.size());
+
+  _data = rdata;
+  return true;
+}
+
+/**
+ * @function getChainInfo 
+ */
+bool ReachabilityDescription::getChainInfo(const std::string &_chain_group,
+                                           reachability_msgs::msg::ChainInfo &_chain_info)
+{
+  if(chain_info_.find(_chain_group) == chain_info_.end())
+    return false;
+
+  _chain_info = chain_info_[_chain_group];
+  return true;
+}
+
+
+/**
+ * @function getReachGraph 
+ */
+std::shared_ptr<ReachGraph> ReachabilityDescription::getReachGraph(const std::string &_chain_group)
+{
+  if(reach_graph_.find(_chain_group) == reach_graph_.end())
+  {
+    RCLCPP_ERROR(logger, "Cannot get reach graph for %s as it is not loaded", _chain_group.c_str());
+    return nullptr;
+  }
+
+  return reach_graph_[_chain_group];
+}
+
+/**
+ * @function getIKSolver 
+ */
+std::shared_ptr<TRAC_IK::TRAC_IK> ReachabilityDescription::getIKSolver(const std::string &_chain_group)
+{
+  if(ik_solver_.find(_chain_group) == ik_solver_.end())
+  {
+    RCLCPP_ERROR(logger, "Cannot get iksolver for %s as it is not loaded", _chain_group.c_str());
+    return nullptr;
+  }
+
+  return ik_solver_[_chain_group];
+}
+
+/**
+ * @function getJointLimits 
+ */
+std::vector<std::pair<double, double>> ReachabilityDescription::getJointLimits(const std::string &_chain_group)
+{ 
+  std::vector<std::pair<double, double>> res;
+
+  if(joint_limits_.find(_chain_group) == joint_limits_.end())
+  {
+    RCLCPP_ERROR(logger, "Cannot get joint limits for chain group %s as it is not loaded", _chain_group.c_str());
+    return res;
+  }
+
+  return joint_limits_[_chain_group];  
+}
+
+
+
+//////////////////////////////////////
+// PROTECTED
+//////////////////////////////////////
+
 
 // "reachability_description::ReachGraphReuleaux"
+/**
+ * @function createPluginInstance
+ * @brief Load plugin for ReachGraph (which calculates sampling in different ways)
+ */
 bool ReachabilityDescription::createPluginInstance(std::shared_ptr<ReachGraph> &_rg, 
                                                    const std::string &_plugin_name)
 {
@@ -90,7 +374,7 @@ bool ReachabilityDescription::createPluginInstance(std::shared_ptr<ReachGraph> &
   }
   catch(pluginlib::PluginlibException& ex)
   {
-    RCLCPP_ERROR(node_->get_logger(), "The plugin failed to load for some reason. Error: %s\n", ex.what());
+    RCLCPP_ERROR(logger, "The plugin failed to load for some reason. Error: %s\n", ex.what());
     return false;
   }
   
@@ -99,6 +383,7 @@ bool ReachabilityDescription::createPluginInstance(std::shared_ptr<ReachGraph> &
 
 /**
  * @function initializeReachGraph
+ * @brief Create plugin for reachGraph and initialize it
  */
 bool ReachabilityDescription::initializeReachGraph( std::shared_ptr<ReachGraph> &_rg, 
                     const reachability_msgs::msg::ChainInfo &_ci, 
@@ -116,6 +401,7 @@ bool ReachabilityDescription::initializeReachGraph( std::shared_ptr<ReachGraph> 
 
 /**
  * @function initializeReachGraph
+ * @brief Create plugin for reachGraph and initialize it
  */
 bool ReachabilityDescription::initializeReachGraph( std::shared_ptr<ReachGraph> &_rg, const reachability_msgs::msg::ReachGraph &_msg)
 {
@@ -170,7 +456,7 @@ void ReachabilityDescription::reach_calc( const double &_min_x, const double &_m
       {
         KDL::JntArray q_init;
         q_init = getClosestJointConfig(xi, yi, zi, _joint_configs, _fk_poses);
-        reachability_msgs::msg::ReachData rdata = fillData(reach_graph_i, 
+        reachability_msgs::msg::ReachData rdata = calculateReachabilityPoint(reach_graph_i, 
                                                   xi, yi, zi, 
                                                   ik_solver, _ci, rco, 
                                                   q_init);
@@ -202,7 +488,7 @@ for(int i = 0; i < reach_graph_i->getNumPoints(); i++)
 reach_fill_mutex_.unlock();
 //-- Fill reach end
 
-RCLCPP_WARN(node_->get_logger(), "Done in thread! Sols: %u/%u . xyz min: (%.3f, %.3f, %.3f) xyz max: (%.3f, %.3f, %.3f)", 
+RCLCPP_WARN(logger, "Done in thread! Sols: %u/%u . xyz min: (%.3f, %.3f, %.3f) xyz max: (%.3f, %.3f, %.3f)", 
             found_sols, reach_graph_i->getNumPoints(), 
             _min_x, _min_y, _min_z, _max_x, _max_y, _max_z);
 }
@@ -238,29 +524,43 @@ KDL::JntArray  ReachabilityDescription::getClosestJointConfig(const double &_xi,
     return KDL::JntArray();
 }
 
+
 /**
- * @function fillData
+ * @function calculateReachabilityPoint
  */
-reachability_msgs::msg::ReachData ReachabilityDescription::fillData(const std::shared_ptr<ReachGraph> &_reach_graph, 
+reachability_msgs::msg::ReachData ReachabilityDescription::calculateReachabilityPoint(const std::shared_ptr<ReachGraph> &_reach_graph, 
                                           int _xi, int _yi, int _zi,
                                           const std::shared_ptr<TRAC_IK::TRAC_IK> &_ik_solver,
                                           const reachability_msgs::msg::ChainInfo &_ci,
                                           const std::shared_ptr<robot_unit::RobotCollisionObject> &_rco,
                                           const KDL::JntArray &_q_init)
 {
+
   double x, y, z;
+  _reach_graph->vertexToWorld(_xi, _yi, _zi, x, y, z);
+
+  return calculateReachabilityPoint(_reach_graph, x, y, z, _ik_solver, _ci, _rco, _q_init);
+}
+
+/**
+ * @function calculateReachabilityPoint
+ */
+reachability_msgs::msg::ReachData ReachabilityDescription::calculateReachabilityPoint(const std::shared_ptr<ReachGraph> &_reach_graph, 
+                                          double _x, double _y, double _z,
+                                          const std::shared_ptr<TRAC_IK::TRAC_IK> &_ik_solver,
+                                          const reachability_msgs::msg::ChainInfo &_ci,
+                                          const std::shared_ptr<robot_unit::RobotCollisionObject> &_rco,
+                                          const KDL::JntArray &_q_init)
+{
   KDL::JntArray q_out; 
   KDL::Frame p_in; 
   KDL::Twist bounds = KDL::Twist::Zero();
-
-
-  _reach_graph->vertexToWorld(_xi, _yi, _zi, x, y, z);
 
   // Create samples
   reachability_msgs::msg::ReachData rdata;
 
   std::vector<Eigen::Isometry3d> frames; 
-  _reach_graph->generateSamples(_xi, _yi, _zi, frames);
+  _reach_graph->generateSamples(_x, _y, _z, frames);
 
   for(auto frame_i : frames)
   {
@@ -294,17 +594,19 @@ reachability_msgs::msg::ReachData ReachabilityDescription::fillData(const std::s
 
   } // end frames_i
 
-  // Set status 
-  if(rdata.samples.size() > 0)
-    rdata.state = reachability_msgs::msg::ReachData::FILLED;
-  else
-    rdata.state = reachability_msgs::msg::ReachData::NO_FILLED;
+  // Set status
+  rdata.state = rdata.samples.size() > 0 ? reachability_msgs::msg::ReachData::FILLED : reachability_msgs::msg::ReachData::NO_FILLED;
   
   // Add metric
+  RCLCPP_WARN(logger, "Calculate metric start");
+    RCLCPP_WARN(logger, "Calculate metric start, samples size: %d", rdata.samples.size());
+    RCLCPP_WARN(logger, "Calculate metric start, num samples: %d", _reach_graph->getNumVoxelSamples());
+    RCLCPP_WARN(logger, "Calculate metric start, now go");
   _reach_graph->calculateMetric(rdata);
-  
+  RCLCPP_WARN(logger, "Calculate metric end");  
   return rdata;
 }
+
 
 /**
  * @function isSelfColliding 
@@ -317,12 +619,13 @@ bool ReachabilityDescription::isSelfColliding(const sensor_msgs::msg::JointState
 
 
 /**
- * @function addKinematicSolvers 
+ * @function addKinematicSolvers
+ * @brief Add IK and FK solvers, plus joint limits
  */
 bool ReachabilityDescription::addKinematicSolvers(const std::string &_chain_group)
 {
-  reachability_description_params::Params params;
-  loadParams(_chain_group, params);
+  if(params_.find(_chain_group) == params_.end())
+    return false;
 
   reachability_msgs::msg::ChainInfo chain_info;
   re_->getChainInfo(_chain_group, chain_info);
@@ -335,7 +638,7 @@ bool ReachabilityDescription::addKinematicSolvers(const std::string &_chain_grou
   ik_solver.reset( new TRAC_IK::TRAC_IK(node_, chain_info.root_link, 
                               chain_info.tip_link, 
                               "robot_description", 
-                              params.ik_max_time, params.ik_epsilon, stringToType(params.ik_type)));
+                              params_[_chain_group].ik_max_time, params_[_chain_group].ik_epsilon, stringToType(params_[_chain_group].ik_type)));
 
   //  Fill IK solver
   ik_solver_[_chain_group] = ik_solver;
@@ -357,16 +660,17 @@ bool ReachabilityDescription::addKinematicSolvers(const std::string &_chain_grou
  * @function estimateReachLimits
  * @brief Calculate reach limits 
  */
-void ReachabilityDescription::estimateReachLimits(const std::string &_chain_group)
+bool ReachabilityDescription::estimateReachLimits(const std::string &_chain_group)
 {
   if(ik_solver_.find(_chain_group) == ik_solver_.end())
-    addKinematicSolvers(_chain_group);
+    return false;
 
-  reachability_description_params::Params params;
-  loadParams(_chain_group, params);
+  if(params_.find(_chain_group) == params_.end())
+    return false;
+    
 
-  double max_radius = params.estimate_reachability.max_radius;
-  double res = params.estimate_reachability.resolution;
+  double max_radius = params_[_chain_group].estimate_reachability.max_radius;
+  double res = params_[_chain_group].estimate_reachability.resolution;
 
   double xmin, ymin, zmin, xmax, ymax, zmax;
   
@@ -390,7 +694,7 @@ void ReachabilityDescription::estimateReachLimits(const std::string &_chain_grou
 
   for(int xi = 0; xi < n; ++xi)
   {
-    RCLCPP_WARN(node_->get_logger(), "Estimating reachability boundaries %d/%d", xi, n);
+    RCLCPP_WARN(logger, "Estimating reachability boundaries %d/%d", xi, n);
     for(int yi = 0; yi < n; ++yi)
     {
       for(int zi = 0; zi < n; ++zi)
@@ -414,7 +718,7 @@ void ReachabilityDescription::estimateReachLimits(const std::string &_chain_grou
     } // for yi
   } // for xi
 
-  RCLCPP_WARN(node_->get_logger(), "Limits: %f %f %f -- %f %f %f", xmin, ymin, zmin, xmax, ymax, zmax);  
+  RCLCPP_WARN(logger, "Limits: %f %f %f -- %f %f %f", xmin, ymin, zmin, xmax, ymax, zmax);  
 }
 
 /**
@@ -430,149 +734,7 @@ void ReachabilityDescription::loadParams(const std::string &_chain_group,
   _params = param_listener->get_params();
 }
 
-/**
- * @function generateDescription 
- */
-bool ReachabilityDescription::generateDescription(const std::string &_chain_group)
-{
-  if(chain_info_.find(_chain_group) == chain_info_.end())
-    addKinematicSolvers(_chain_group);
 
-  // Parameters
-  reachability_description_params::Params params;
-  loadParams(_chain_group, params);
-
-  std::map<std::string, KDL::JntArray > joint_configs;
-  for(auto jc :  params.ik_start_configs)
-    re_->getChainGroupState(_chain_group, jc, joint_configs[jc]);
-
-  // Get the FK for these joint configs
-  std::map<std::string, KDL::Frame> fk_poses;
-  for(auto ji : joint_configs)
-    fk_solver_[_chain_group]->JntToCart(ji.second, fk_poses[ji.first]);
-
-  double x_mid, y_mid, z_mid;
-
-   RCLCPP_WARN(node_->get_logger(), "Generate reach data for robot %s, group: %s, min: (%f %f %f), max: (%f %f %f), res: %f, # voxel samples: %ld",
-   robot_name_.c_str(), _chain_group.c_str(), 
-   params.x_min, params.y_min, params.z_min, 
-   params.x_max, params.y_max, params.z_max, 
-   params.voxel_resolution, params.voxel_num_samples);
-
-  x_mid = (params.x_min + params.x_max)*0.5;
-  y_mid = (params.y_min + params.y_max)*0.5;
-  z_mid = (params.z_min + params.z_max)*0.5;
-  
-  // Init reach graph
-  reachability_msgs::msg::ReachData reach_default;
-  reach_default.state = reachability_msgs::msg::ReachData::NO_FILLED;
-
-  if(!initializeReachGraph(reach_graph_[_chain_group], chain_info_[_chain_group], 
-                 params.x_min, params.y_min, params.z_min, 
-                 params.x_max, params.y_max, params.z_max,
-	         params.voxel_resolution, params.voxel_num_samples, reach_default ))
-  {
-     RCLCPP_ERROR(node_->get_logger(), "Initialize reach graph failed");
-     return false;	         
-  }
-
-
- std::thread to1_( &ReachabilityDescription::reach_calc, this, 
-                  params.x_min, params.y_min, params.z_min, 
-                  x_mid, y_mid, params.z_max, 
-                  chain_info_[_chain_group], 
-                  params.ik_max_time, params.ik_epsilon, stringToType(params.ik_type), 
-                  joint_configs, fk_poses);
- std::thread to2_( &ReachabilityDescription::reach_calc, this, 
-                  params.x_min, y_mid, params.z_min, 
-                  x_mid, params.y_max, params.z_max, 
-                  chain_info_[_chain_group], 
-                  params.ik_max_time, params.ik_epsilon, stringToType(params.ik_type), 
-                  joint_configs, fk_poses);
- std::thread to3_( &ReachabilityDescription::reach_calc, this, 
-                  x_mid, params.y_min, params.z_min, 
-                  params.x_max, y_mid, params.z_max, 
-                  chain_info_[_chain_group], 
-                  params.ik_max_time, params.ik_epsilon, stringToType(params.ik_type), 
-                  joint_configs, fk_poses);
- std::thread to4_( &ReachabilityDescription::reach_calc, this, 
-                  x_mid, y_mid, params.z_min, 
-                  params.x_max, params.y_max, params.z_max, 
-                  chain_info_[_chain_group], 
-                  params.ik_max_time, params.ik_epsilon, stringToType(params.ik_type), 
-                  joint_configs, fk_poses);
-
- to1_.join();
- to2_.join();
- to3_.join();
- to4_.join();
-
- return true;
-}
-
-/**
- * @function getReachabilityData 
- */
-bool ReachabilityDescription::getReachabilityData(const std::string &_chain_group,
-                                                  const double &_x, const double &_y, const double &_z, 
-                                                  reachability_msgs::msg::ReachData &_data)
-{
-  if(reach_graph_.find(_chain_group) == reach_graph_.end() )
-    return false;
-
-  int xi, yi, zi;
-  if(!reach_graph_[_chain_group]->worldToVertex(_x, _y, _z, xi, yi, zi))
-    return false;
-
-  reachability_msgs::msg::ReachData rdata = reach_graph_[_chain_group]->getState(xi, yi, zi);
-  RCLCPP_WARN(node_->get_logger(), "Got reachability data: from %f %f %f to %d %d %d, samples: %ld", 
-              _x, _y, _z, xi, yi, zi, rdata.samples.size());
-
-  _data = rdata;
-  return true;
-}
-
-/**
- * @function getChainInfo 
- */
-bool ReachabilityDescription::getChainInfo(const std::string &_chain_group,
-                                           reachability_msgs::msg::ChainInfo &_chain_info)
-{
-  if(chain_info_.find(_chain_group) == chain_info_.end())
-    return false;
-
-  _chain_info = chain_info_[_chain_group];
-  return true;
-}
-
-/**
- * @function viewDescription 
- */
-bool ReachabilityDescription::viewDescription(const std::string &_chain_group)
-{
-  if(reach_graph_.find(_chain_group) == reach_graph_.end())
-    return false;
-
-  reachability_description_params::Params params;
-  loadParams(_chain_group, params);
-
-  std::string plane = params.display_reachability.plane;
-  double plane_dist = params.display_reachability.plane_dist;
-
-  sensor_msgs::msg::PointCloud2 msg;
-  msg = reach_graph_[_chain_group]->getPCD(plane, plane_dist);
-  //msg = reach_graph_->getPCDHigherThan(0.2);
-
-  rclcpp::Rate r(1.0);
-  for(unsigned int i = 0; i < 10; ++i)
-  {
-    pub_reach_->publish(msg);
-    r.sleep();
-    rclcpp::spin_some(node_);
-  }
-
-  return true;
-}
 
 /**
  * @function generateDefaultReachGroupName 
@@ -584,101 +746,6 @@ std::string ReachabilityDescription::generateDefaultReachGroupName(const std::st
   return share_dir + std::string("/reachability_") + robot_name_ + std::string("_") + _chain_group;
 }
 
-/**
- * @function storeDescription
- */
-bool ReachabilityDescription::loadDescription(const std::string &_chain_group)
-{
-  if(reach_graph_.find(_chain_group) != reach_graph_.end())
-  {
-    RCLCPP_INFO(node_->get_logger(), "Reach description for %s will not be loaded  because it already exists", 
-                _chain_group.c_str());
-    return false;
-  }
-
-  std::string filename = generateDefaultReachGroupName(_chain_group);
-  RCLCPP_INFO(node_->get_logger(), "Trying to load from file: %s", filename.c_str());
-  reachability_msgs::msg::ReachGraph msg;
-  
-  ReachSerial<reachability_msgs::msg::ReachGraph> reach_serial;
-  RCLCPP_INFO(node_->get_logger(), "Read from disk start");
-  bool b = reach_serial.readFromDisk(filename, msg);
-  RCLCPP_INFO(node_->get_logger(), "Read from disk end");
-  if(!b)
-    return false;
-
-  // Load ReachData with message
-  return initializeReachGraph(reach_graph_[_chain_group], msg);
-}
-
-
-/**
- * @function storeDescription
- */
-bool ReachabilityDescription::storeDescription(const std::string &_chain_group)
-{
-  if(reach_graph_.find(_chain_group) == reach_graph_.end())
-  {
-    RCLCPP_INFO(node_->get_logger(), "Cannot store reach description for %s . It is not generated / loaded ", 
-                _chain_group.c_str());
-    return false;
-  }
-
-  std::string filename = generateDefaultReachGroupName(_chain_group);
-  
-  RCLCPP_WARN(node_->get_logger(), "Storing description for robot %s and group %s in %s", 
-              robot_name_.c_str(), _chain_group.c_str(), filename.c_str());
-
-  reachability_msgs::msg::ReachGraph msg;
-  reach_graph_[_chain_group]->toMsg(msg);
-  
-  ReachSerial<reachability_msgs::msg::ReachGraph> reach_serial;
-  return reach_serial.writeToDisk(msg, filename);
-}
-
-/**
- * @function getReachGraph 
- */
-std::shared_ptr<ReachGraph> ReachabilityDescription::getReachGraph(const std::string &_chain_group)
-{
-  if(reach_graph_.find(_chain_group) == reach_graph_.end())
-  {
-    RCLCPP_ERROR(node_->get_logger(), "Cannot get reach graph for %s as it is not loaded", _chain_group.c_str());
-    return nullptr;
-  }
-
-  return reach_graph_[_chain_group];
-}
-
-/**
- * @function getIKSolver 
- */
-std::shared_ptr<TRAC_IK::TRAC_IK> ReachabilityDescription::getIKSolver(const std::string &_chain_group)
-{
-  if(ik_solver_.find(_chain_group) == ik_solver_.end())
-  {
-    RCLCPP_ERROR(node_->get_logger(), "Cannot get iksolver for %s as it is not loaded", _chain_group.c_str());
-    return nullptr;
-  }
-
-  return ik_solver_[_chain_group];
-}
-
-/**
- * @function getJointLimits 
- */
-std::vector<std::pair<double, double>> ReachabilityDescription::getJointLimits(const std::string &_chain_group)
-{ 
-  std::vector<std::pair<double, double>> res;
-
-  if(joint_limits_.find(_chain_group) == joint_limits_.end())
-  {
-    RCLCPP_ERROR(node_->get_logger(), "Cannot get joint limits for chain group %s as it is not loaded", _chain_group.c_str());
-    return res;
-  }
-
-  return joint_limits_[_chain_group];  
-}
 
 
 }  // namespace reachability_description

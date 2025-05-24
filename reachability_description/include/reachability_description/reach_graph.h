@@ -1,7 +1,7 @@
 /**
  * @file reach_data.h
  * @author A. Huaman Quispe
- * @date 2012-08-16
+ * @date 2025-05-22
  */
 
 #pragma once
@@ -36,7 +36,10 @@ class ReachGraph {
 	            const reachability_msgs::msg::ReachData &_default);
     bool initialize(const reachability_msgs::msg::ReachGraph &_msg);
 
-    virtual void generateSamples(const int &_xi, const int &_yi, const int &_zi, 
+    void generateSamples(const int &_xi, const int &_yi, const int &_zi, 
+                         std::vector<Eigen::Isometry3d> &_frames);
+
+    virtual void generateSamples(const double &_x, const double &_y, const double &_z, 
                                  std::vector<Eigen::Isometry3d> &_frames) {};
 
     virtual bool calculateMetric(reachability_msgs::msg::ReachData &_rdata) { return false; };
