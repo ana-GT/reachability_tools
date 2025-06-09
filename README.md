@@ -22,3 +22,14 @@ Build workspace
    source /opt/ros/jazzy/setup.bash
    colcon build --symlink-install
    ```
+   
+   
+Test Reachability
+==================
+
+1. Start Fetch demo:
+   ```
+   ros2 launch reachability_demos fetch_reachability_query.launch.py
+   ```   
+   
+   Now you can move the gimbal around, right-click and press Get Pose to see the possible poses
