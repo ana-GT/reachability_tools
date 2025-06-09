@@ -11,6 +11,7 @@ int main(int argc, char* argv[])
   // Read parameters
   std::string chain_group;
   std::string robot_name;
+  
   if(!node->has_parameter("chain_group_name"))
     node->declare_parameter("chain_group_name", std::string(""));
   node->get_parameter("chain_group_name", chain_group);
@@ -22,15 +23,21 @@ int main(int argc, char* argv[])
   // Create main class and initialize  
   RCLCPP_INFO(node->get_logger(), "Initialize Reachability Description ");   
   reachability_description::ReachabilityDescription rd(node);
+  
   if(!rd.initialize(robot_name))
   {
     RCLCPP_ERROR(node->get_logger(), "Error initializing Reachability Description");
-    RCLCPP_ERROR(node->get_logger(), "Robot name: %s, chain group: %s", robot_name.c_str(), chain_group.c_str());
     return 1;
   }
+  
+  if(!rd.initializeGroup(chain_group))
+  {
+    RCLCPP_ERROR(node->get_logger(), "Failed initializing group %s", chain_group.c_str());
+    return 1;
+  }  
 
   // Actually generate the description
-  RCLCPP_INFO(node->get_logger(), "generate Description process start ");   
+  RCLCPP_INFO(node->get_logger(), "Start the generating Description process... ");   
   auto ts = std::chrono::system_clock::now();
   bool b = rd.generateDescription(chain_group);
   auto tf = std::chrono::system_clock::now();
@@ -47,7 +54,6 @@ int main(int argc, char* argv[])
     rd.viewDescription(chain_group);
   }
   
-  RCLCPP_INFO(node->get_logger(), "Spin! ");
   rclcpp::spin(node);
 
   rclcpp::shutdown();

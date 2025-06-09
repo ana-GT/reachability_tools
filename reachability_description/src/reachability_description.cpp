@@ -447,7 +447,7 @@ void ReachabilityDescription::reach_calc( const double &_min_x, const double &_m
   if(!rco->init(DEFAULT_REF_FRAME, robot_name_, urdf_string_, srdf_string_))
     return;
 
-
+  RCLCPP_WARN(logger, "reach_calc: Starting loop to generate reachability checks for [%.3f %.3f %.3f --- %.3f %.3f %.3f]", _min_x, _min_y, _min_z, _max_x, _max_y, _max_z);
   for(int xi = 0; xi < reach_graph_i->getNumX(); ++xi )
   {
     for(int yi = 0; yi < reach_graph_i->getNumY(); ++yi)
@@ -598,12 +598,7 @@ reachability_msgs::msg::ReachData ReachabilityDescription::calculateReachability
   rdata.state = rdata.samples.size() > 0 ? reachability_msgs::msg::ReachData::FILLED : reachability_msgs::msg::ReachData::NO_FILLED;
   
   // Add metric
-  RCLCPP_WARN(logger, "Calculate metric start");
-    RCLCPP_WARN(logger, "Calculate metric start, samples size: %d", rdata.samples.size());
-    RCLCPP_WARN(logger, "Calculate metric start, num samples: %d", _reach_graph->getNumVoxelSamples());
-    RCLCPP_WARN(logger, "Calculate metric start, now go");
   _reach_graph->calculateMetric(rdata);
-  RCLCPP_WARN(logger, "Calculate metric end");  
   return rdata;
 }
 
@@ -663,11 +658,16 @@ bool ReachabilityDescription::addKinematicSolvers(const std::string &_chain_grou
 bool ReachabilityDescription::estimateReachLimits(const std::string &_chain_group)
 {
   if(ik_solver_.find(_chain_group) == ik_solver_.end())
+  {
+    RCLCPP_ERROR(logger, "Estimating reachability limits: Group %s was not initialized", _chain_group.c_str());
     return false;
-
+  }
+  
   if(params_.find(_chain_group) == params_.end())
+  {
+    RCLCPP_ERROR(logger, "Estimating reachability limits: Params for %s was not initialized", _chain_group.c_str());
     return false;
-    
+  } 
 
   double max_radius = params_[_chain_group].estimate_reachability.max_radius;
   double res = params_[_chain_group].estimate_reachability.resolution;
@@ -718,7 +718,8 @@ bool ReachabilityDescription::estimateReachLimits(const std::string &_chain_grou
     } // for yi
   } // for xi
 
-  RCLCPP_WARN(logger, "Limits: %f %f %f -- %f %f %f", xmin, ymin, zmin, xmax, ymax, zmax);  
+  RCLCPP_WARN(logger, "Limits: %f %f %f -- %f %f %f", xmin, ymin, zmin, xmax, ymax, zmax);
+  return true;
 }
 
 /**

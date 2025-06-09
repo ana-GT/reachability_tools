@@ -24,13 +24,24 @@ int main(int argc, char* argv[])
   // Create main class and initialize  
   reachability_description::ReachabilityDescription rd(node);
   if(!rd.initialize(robot_name))
+  {
+    RCLCPP_ERROR(node->get_logger(), "Failed initializing ReachabilityDescription structure");
     return 1;
+  }  
 
-  // Actually generate the description
+  if(!rd.initializeGroup(chain_group))
+  {
+    RCLCPP_ERROR(node->get_logger(), "Failed initializing group %s ", chain_group.c_str());
+    return 1;
+  }  
+
+  // Estimate the limits
+  RCLCPP_INFO(node->get_logger(), "Start to calculate the reachability limits");
   auto ts = std::chrono::system_clock::now();
   rd.estimateReachLimits(chain_group);
   auto tf = std::chrono::system_clock::now();
   std::chrono::duration<double> dt = (tf - ts);
+  RCLCPP_INFO(node->get_logger(), "Finished calculating reachability limits");  
   RCLCPP_INFO(node->get_logger(), "Estimate reach limits for robot %s and group %s. Time: %f seconds ", robot_name.c_str(), chain_group.c_str(), dt.count());   
 
   rclcpp::spin(node);
