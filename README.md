@@ -1,32 +1,24 @@
 
-Test in Docker
-==============
+Pre-requisites
+===============
+This package is tested in ROS2 Jazzy, Ubuntu 24.04
 
-1. Clone repo and build image:
+Build workspace
+================
 
+1. Clone this workspace repository that have scripts to pull all the pre-requisites and packages needed to run the demos:
    ```
-   git clone git@github.com:ana-GT/compose_setups.git -b reachability
-   cd compose_setups
-   ./scripts/build_images.sh
+   cd ~
+   git clone git@github.com:ana-GT/compose_setups.git reachability_ws
+   cd reachability_ws
+   ```
+2. Clone the necessary packages (including this one), and ignore some packages that are not needed:
+   ```
    ./scripts/clone_rosws.sh
-   ./scripts/build_rosws.sh
+   ./scripts/ignore.sh
    ```
-   
-2. Start services:
-
+3. Build:
    ```
-   docker compose -f docker-compose-dev.yml up
-   ```
-   
-   and in a browser tab, open VNC so you can see GUIs: 
-   ```
-   http://localhost:8080/vnc.html
-   ```
-   
-3. Open a terminal within the running container and now you can do your stuff here:
-
-   ```
-   docker exec -it compose_setups-rosws-1 bash
-   source install/setup.bash
-   
+   source /opt/ros/jazzy/setup.bash
+   colcon build --symlink-install
    ```
