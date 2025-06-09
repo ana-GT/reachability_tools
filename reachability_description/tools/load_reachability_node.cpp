@@ -24,6 +24,9 @@ int main(int argc, char* argv[])
   if(!rd.initialize(robot_name))
     return 1;
 
+  if(!rd.initializeGroup(chain_group))
+    return 1;
+
   // Actually generate the description
   RCLCPP_INFO(node->get_logger(), "Loading description of robot %s and group %s ", robot_name.c_str(), chain_group.c_str());   
 

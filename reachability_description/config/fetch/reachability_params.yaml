@@ -29,4 +29,4 @@ arm_with_torso:
 
   display_reachability:
     plane: "XY+"
-    plane_dist: 0.60
+    plane_dist: 1.0

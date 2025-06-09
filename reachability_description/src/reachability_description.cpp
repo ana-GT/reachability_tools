@@ -220,12 +220,12 @@ bool ReachabilityDescription::viewDescription(const std::string &_chain_group)
  */
 bool ReachabilityDescription::loadDescription(const std::string &_chain_group)
 {
-  if(reach_graph_.find(_chain_group) != reach_graph_.end())
+  /*if(reach_graph_.find(_chain_group) != reach_graph_.end())
   {
     RCLCPP_INFO(logger, "Reach description for %s will not be loaded  because it already exists", 
                 _chain_group.c_str());
     return false;
-  }
+  }*/
 
   std::string filename = generateDefaultReachGroupName(_chain_group);
   RCLCPP_INFO(logger, "Trying to load from file: %s", filename.c_str());
