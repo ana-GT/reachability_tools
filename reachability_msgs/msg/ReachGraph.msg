@@ -1,4 +1,0 @@
-reachability_msgs/ChainInfo chain_info
-reachability_msgs/ReachParams params
-
-reachability_msgs/ReachData[] points
