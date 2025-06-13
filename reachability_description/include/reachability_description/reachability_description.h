@@ -10,7 +10,7 @@
 #include <robot_unit/fast_robot_collision_object.h>
 #include <Eigen/Geometry>
 #include <reachability_description/reachability_description_parameters.hpp>
-
+#include <reachability_msgs/msg/reach_graph_stamped.hpp>
 #include <pluginlib/class_loader.hpp>
 #include <reachability_description/reach_graph.h>
 
@@ -20,6 +20,7 @@ namespace reachability_description
 
 #define DEFAULT_REF_FRAME "world"
 #define REACH_CLOUD_TOPIC "reach_data_test"
+#define REACH_GRAPH_TOPIC "reach_graph"
 
 /**
  * @class ReachabilityDescription
@@ -120,7 +121,8 @@ class ReachabilityDescription
     rclcpp::Node::SharedPtr node_;
 
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_reach_;
-
+    rclcpp::Publisher<reachability_msgs::msg::ReachGraphStamped>::SharedPtr pub_reach_graph_;
+    
     std::shared_ptr<RobotEntity> re_;
     std::shared_ptr<robot_unit::RobotCollisionObject> rco_;
 

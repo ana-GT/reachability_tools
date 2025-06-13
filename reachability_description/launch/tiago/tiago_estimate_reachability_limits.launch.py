@@ -1,7 +1,7 @@
 import os
 import yaml
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
 from launch.conditions import IfCondition, UnlessCondition
 from launch_ros.actions import Node
@@ -31,13 +31,23 @@ def load_yaml(package_name, file_path):
 #####################################
 def generate_launch_description():
 
-    xacro_file_path = Path(
-        os.path.join(
-            get_package_share_directory("robots_config"),
-            "robots", 'tiago',
-            "tiago.urdf.xacro",
-        )
-    )
+    launch_args = [
+        DeclareLaunchArgument(name="rviz", default_value="True"),
+    ]
+
+    rc_dir = get_package_share_directory("robots_config")
+
+    # Launch robot
+    robot_launch = IncludeLaunchDescription(
+            PathJoinSubstitution([rc_dir, 'launch/tiago/tiago_config.launch.py']),
+            launch_arguments={
+              'rviz': LaunchConfiguration('rviz')
+            }.items(),
+    )    
+
+    # URDF/SRDF
+    robot_config = get_package_share_directory("robots_config")
+    xacro_file_path = Path(os.path.join(robot_config, "robots/tiago/tiago.urdf.xacro"))
 
     xacro_input_args = {
         "arm_type": "tiago-arm",
@@ -47,23 +57,14 @@ def generate_launch_description():
         "laser_model": "sick-571",
         "wrist_model": "wrist-2010",
         "base_type": "pmb2",
-        "has_screen": False,
-#        "use_sim_time": False,
-#        "is_public_sim": True,
-#        "namespace": read_launch_argument("namespace", context),
+        "has_screen": False
     }
-    urdf_config = load_xacro(xacro_file_path, xacro_input_args)
-    
-    parameters = {'robot_description': urdf_config}
+    urdf_config = load_xacro(xacro_file_path, xacro_input_args)    
+    robot_description = {'robot_description': urdf_config}
 
-    srdf_file = os.path.join(get_package_share_directory('robots_config'), 'config',
-                                     'tiago', 'tiago_right-arm_pal-gripper_schunk-ft.srdf')
+    srdf_file = os.path.join(rc_dir, 'config/tiago/tiago_right-arm_pal-gripper_schunk-ft.srdf')
     srdf_config = open(srdf_file).read()
-
-
-    robot_description_semantic = {
-        'robot_description_semantic': srdf_config
-    }
+    robot_description_semantic = {'robot_description_semantic': srdf_config}
 
     # Reach parameters
     reachability_yaml = load_yaml(
@@ -72,48 +73,16 @@ def generate_launch_description():
     reachability_params = {"reachability_params": reachability_yaml}
 
 
-    rviz_base = os.path.join(get_package_share_directory("robots_config"), "rviz")
-    rviz_full_config = os.path.join(rviz_base, "tiago.rviz")
-    rviz_node = Node(
-        package="rviz2",
-        executable="rviz2",
-        name="rviz2",
-        output="log",
-        arguments=["-d", rviz_full_config],
-        parameters=[]
-    )
-
-    # Static TF
-    static_tf = Node(
-        package="tf2_ros",
-        executable="static_transform_publisher",
-        name="static_transform_publisher",
-        output="log",
-        arguments=["0.0", "0.0", "0.0", "0.0", "0.0", "0.0", "world", "base_link"],
-    )
-
-    # Publish TF
-    rsp = Node(package='robot_state_publisher',
-               executable='robot_state_publisher',
-               output='both',
-               parameters=[{'robot_description': urdf_config}])
-    
-    # Joint State publisher
-    joint_publisher = Node(
-        package='joint_state_publisher',
-        executable='joint_state_publisher',
-        name='joint_state_publisher',
-        output='screen')
-
-    # Estimate
+    # Reachability limits generation node
     estimate_reach = Node(
         package='reachability_description',
         executable='estimate_reachability_limits_node',
         output='screen',
         parameters=[
             reachability_params,
-            {"robot_description": urdf_config},
-            {"robot_description_semantic" : srdf_config},
+            robot_description,
+            robot_description_semantic,
+            {"plugin_name": "reachability_description::ReachGraphReuleaux"},            
             {"chain_group_name": "arm_torso"}, # arm_torso, arm
             {"robot_name": "tiago"} 
         ]
@@ -121,10 +90,8 @@ def generate_launch_description():
 
 
     return LaunchDescription(
-        [ rsp,
-          rviz_node,
-          static_tf,
-          joint_publisher,
+        launch_args +
+        [ robot_launch,
           estimate_reach
         ]
 

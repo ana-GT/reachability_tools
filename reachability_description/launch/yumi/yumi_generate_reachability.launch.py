@@ -1,8 +1,8 @@
 import os
 import yaml
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.conditions import IfCondition, UnlessCondition
 from launch_ros.actions import Node
 from launch.actions import ExecuteProcess
@@ -34,11 +34,24 @@ def load_yaml(package_name, file_path):
 #######################################
 def generate_launch_description():
 
+    launch_args = [
+        DeclareLaunchArgument(name="rviz", default_value="True"),
+        DeclareLaunchArgument(name="group", default_value="right_arm"),
+    ]
+
+    rc_dir = get_package_share_directory("robots_config")
+
+    # Launch robot
+    robot_launch = IncludeLaunchDescription(
+            PathJoinSubstitution([rc_dir, 'launch/yumi/yumi_config.launch.py']),
+            launch_arguments={
+              'rviz': LaunchConfiguration('rviz')
+            }.items(),
+    )    
+
+    # URDF/SRDF    
     robot_description_config = xacro.process_file(
-        os.path.join(
-            get_package_share_directory("robots_config"),
-            "robots", "yumi",
-            "yumi.urdf.xacro",
+        os.path.join(rc_dir, "robots/yumi/yumi.urdf.xacro",
         ),
         in_order = False,
         mappings = {'arms_interface': 'VelocityJointInterface', 
@@ -47,12 +60,14 @@ def generate_launch_description():
     )
     robot_description = {"robot_description": robot_description_config.toxml()}
 
+
     robot_description_semantic_config = load_file(
         "robots_config", "config/yumi/yumi.srdf"
     )
     robot_description_semantic = {
         "robot_description_semantic": robot_description_semantic_config
     }
+
 
     # Reach parameters
     reachability_yaml = load_yaml(
@@ -61,58 +76,8 @@ def generate_launch_description():
     reachability_params = {"reachability_params": reachability_yaml}
 
 
-    yumi_zero_joints = { 
-        "zeros": {
-          "yumi_joint_1_l": 0, 
-          "yumi_joint_2_l": -1.57, 
-          "yumi_joint_7_l": 1.57, 
-          "yumi_joint_3_l": 0.7, 
-          "yumi_joint_4_l": -1.57, 
-          "yumi_joint_5_l": 1.3, 
-          "yumi_joint_6_l": 1.57, 
-          "yumi_joint_1_r": 0, 
-          "yumi_joint_2_r": -1.57, 
-          "yumi_joint_7_r": -1.57, 
-          "yumi_joint_3_r": 0.7, 
-          "yumi_joint_4_r": -1.57, 
-          "yumi_joint_5_r": -1.3, 
-          "yumi_joint_6_r": -1.57        
-       }
-    }
-
-    rviz_base = os.path.join(get_package_share_directory("robots_config"), "rviz")
-    rviz_full_config = os.path.join(rviz_base, "yumi.rviz")
-    rviz_node = Node(
-        package="rviz2",
-        executable="rviz2",
-        name="rviz2",
-        output="log",
-        arguments=["-d", rviz_full_config],
-        parameters=[
-        robot_description,
-        robot_description_semantic
-        ]
-    )
-
-    # Publish TF
-    robot_state_publisher = Node(
-        package="robot_state_publisher",
-        executable="robot_state_publisher",
-        name="robot_state_publisher",
-        output="both",
-        parameters=[robot_description],
-    )
-    
-    # Joint State publisher
-    joint_publisher = Node(
-        package='joint_state_publisher',
-        executable='joint_state_publisher',
-        name='joint_state_publisher',
-        parameters=[yumi_zero_joints],
-        output='screen')
-
-    # Estimate
-    gen_reach = Node(
+    # Reachability generation node
+    reach_gen = Node(
         package='reachability_description',
         executable='generate_reachability_node',
         output='screen',
@@ -120,18 +85,14 @@ def generate_launch_description():
             reachability_params,
             robot_description,
             robot_description_semantic,
-            {"chain_group_name": "right_arm"}, # right_arm
+            {"plugin_name": "reachability_description::ReachGraphReuleaux"},            
+            {"chain_group_name": LaunchConfiguration("group")}, # right_arm
             {"robot_name": "yumi"} 
         ]
     ) 
 
     return LaunchDescription(
-        [
-            rviz_node,
-#            static_tf,
-            robot_state_publisher,
-            joint_publisher,
-            gen_reach
-        ]
+        launch_args +
+        [robot_launch, reach_gen]
 
     )

@@ -5,7 +5,7 @@ from launch.actions import DeclareLaunchArgument
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
 from launch.conditions import IfCondition, UnlessCondition
 from launch_ros.actions import Node
-from launch.actions import ExecuteProcess
+from launch.actions import ExecuteProcess, IncludeLaunchDescription
 from ament_index_python.packages import get_package_share_directory
 import xacro
 
@@ -30,13 +30,23 @@ def load_yaml(package_name, file_path):
 #####################################
 def generate_launch_description():
 
-    xacro_file_path = Path(
-        os.path.join(
-            get_package_share_directory("robots_config"),
-            "robots", 'tiago',
-            "tiago.urdf.xacro",
-        )
-    )
+    launch_args = [
+        DeclareLaunchArgument(name="rviz", default_value="True"),
+    ]
+
+    rc_dir = get_package_share_directory("robots_config")
+
+    # Launch robot
+    robot_launch = IncludeLaunchDescription(
+            PathJoinSubstitution([rc_dir, 'launch/tiago/tiago_config.launch.py']),
+            launch_arguments={
+              'rviz': LaunchConfiguration('rviz')
+            }.items(),
+    )    
+
+    # URDF/SRDF
+    robot_config = get_package_share_directory("robots_config")
+    xacro_file_path = Path(os.path.join(robot_config, "robots/tiago/tiago.urdf.xacro"))
 
     xacro_input_args = {
         "arm_type": "tiago-arm",
@@ -46,23 +56,15 @@ def generate_launch_description():
         "laser_model": "sick-571",
         "wrist_model": "wrist-2010",
         "base_type": "pmb2",
-        "has_screen": False,
-#        "use_sim_time": False,
-#        "is_public_sim": True,
-#        "namespace": read_launch_argument("namespace", context),
+        "has_screen": False
     }
-    urdf_config = load_xacro(xacro_file_path, xacro_input_args)
+    urdf_config = load_xacro(xacro_file_path, xacro_input_args)    
+    robot_description = {'robot_description': urdf_config}
 
-    parameters = {'robot_description': urdf_config}
-
-    srdf_file = os.path.join(get_package_share_directory('robots_config'), 'config',
-                                     'tiago', 'tiago_right-arm_pal-gripper_schunk-ft.srdf')
+    srdf_file = os.path.join(rc_dir, 'config/tiago/tiago_right-arm_pal-gripper_schunk-ft.srdf')
     srdf_config = open(srdf_file).read()
+    robot_description_semantic = {'robot_description_semantic': srdf_config}
 
-
-    robot_description_semantic = {
-        'robot_description_semantic': srdf_config
-    }
 
     # Reach parameters
     reachability_yaml = load_yaml(
@@ -71,40 +73,23 @@ def generate_launch_description():
     reachability_params = {"reachability_params": reachability_yaml}
 
 
-    # Publish TF
-    robot_state_publisher = Node(package='robot_state_publisher',
-               executable='robot_state_publisher',
-               output='both',
-               parameters=[{'robot_description': urdf_config}])
-    
-    # Joint State publisher
-    joint_publisher = Node(
-        package='joint_state_publisher',
-        executable='joint_state_publisher',
-        name='joint_state_publisher',
-        output='screen')
-
-    # Reach
+    # Reachability generation node
     reach_gen = Node(
         package='reachability_description',
         executable='generate_reachability_node',
         output='screen',
         parameters=[
             reachability_params,
-            {"robot_description": urdf_config},
-            {"robot_description_semantic" : srdf_config},
+            robot_description,
+            robot_description_semantic,
+            {"plugin_name": "reachability_description::ReachGraphReuleaux"},
             {"chain_group_name": "arm_torso"}, # arm_torso, arm
             {"robot_name": "tiago"},
-            {"plugin_name": "reachability_description::ReachGraphReuleaux"}  
         ] #, prefix=['xterm -e gdb -ex run --args']
     )    
 
 
     return LaunchDescription(
-        [
-          robot_state_publisher,
-          joint_publisher,
-          reach_gen
-        ]
-
+        launch_args +
+        [robot_launch, reach_gen]
     )

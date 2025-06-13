@@ -1,0 +1,6 @@
+<library path="reachability_display">
+  <class name="ReachabilityDisplay" type="reachability_viz::ReachabilityDisplay" base_class_type="rviz_common::Display">
+    <description>Display reachability</description>
+    <message_type>reachability_msgs/msg/ReachGraphStamped</message_type>
+  </class>
+</library>

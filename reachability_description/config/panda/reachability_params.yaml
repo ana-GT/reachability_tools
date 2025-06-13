@@ -6,7 +6,7 @@ fr3_manipulator:
   ik_start_configs: ["panda_default"]  
   
   voxel_resolution: 0.05
-  voxel_num_samples: 272 # 40 272
+  voxel_num_samples: 40 # 40 272
 
 
   x_min: -0.95
@@ -17,5 +17,5 @@ fr3_manipulator:
   z_max:  1.35
   
   display_reachability:
-    plane: "XY+"
+    plane: "YZ+"
     plane_dist: 0.25  

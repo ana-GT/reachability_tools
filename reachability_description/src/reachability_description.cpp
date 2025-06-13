@@ -76,8 +76,11 @@ bool ReachabilityDescription::initialize(const std::string &_robot_name)
     return false;
 
   // Publishes reachability result
-  pub_reach_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>(REACH_CLOUD_TOPIC, 10);
+  rclcpp::QoS qos_latch(1);
+  qos_latch.transient_local();
 
+  pub_reach_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>(REACH_CLOUD_TOPIC, qos_latch);
+  pub_reach_graph_ = node_->create_publisher<reachability_msgs::msg::ReachGraphStamped>(REACH_GRAPH_TOPIC, qos_latch);
   return true;
 }
 
@@ -203,7 +206,7 @@ bool ReachabilityDescription::viewDescription(const std::string &_chain_group)
   sensor_msgs::msg::PointCloud2 msg;
   msg = reach_graph_[_chain_group]->getPCD(plane, plane_dist);
   //msg = reach_graph_->getPCDHigherThan(0.2);
-
+/*
   rclcpp::Rate r(1.0);
   for(unsigned int i = 0; i < 10; ++i)
   {
@@ -211,6 +214,21 @@ bool ReachabilityDescription::viewDescription(const std::string &_chain_group)
     r.sleep();
     rclcpp::spin_some(node_);
   }
+*/
+  reachability_msgs::msg::ReachGraphStamped rgs_msg;
+
+  auto rgs = this->getReachGraph(_chain_group);  
+  rgs_msg.data.chain_info = rgs->getChainInfo();
+  //rgs_msg.data.params = ;
+  rgs_msg.header.stamp = node_->now();
+  rgs_msg.header.frame_id = rgs_msg.data.chain_info.root_link;
+
+  for(int i = 0; i < rgs->getNumPoints(); ++i)
+  { 
+     rgs_msg.data.points.push_back(rgs->getState(i));
+  }
+  RCLCPP_INFO(logger, "Number of points %d being sent!!!!!", rgs_msg.data.points.size());  
+  pub_reach_graph_->publish(rgs_msg);
 
   return true;
 }

@@ -26,6 +26,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 "msg/ReachData.msg"
 "msg/ReachSample.msg"
 "msg/ReachGraph.msg"
+"msg/ReachGraphStamped.msg"
 "msg/Param.msg"
 "srv/GetHandToUser.srv"
 "srv/GenerateReachPoses.srv"
