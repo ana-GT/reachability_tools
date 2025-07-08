@@ -219,7 +219,7 @@ bool ReachabilityDescription::viewDescription(const std::string &_chain_group)
 
   auto rgs = this->getReachGraph(_chain_group);  
   rgs_msg.data.chain_info = rgs->getChainInfo();
-  //rgs_msg.data.params = ;
+  rgs_msg.data.params = rgs->getReachParams();
   rgs_msg.header.stamp = node_->now();
   rgs_msg.header.frame_id = rgs_msg.data.chain_info.root_link;
 

@@ -60,7 +60,8 @@ class ReachGraph {
     void setState( int _xi, int _yi, int _zi, const reachability_msgs::msg::ReachData &_rd );
 
     reachability_msgs::msg::ChainInfo getChainInfo() { return chain_info_; }
-
+    reachability_msgs::msg::ReachParams getReachParams() { return params_; }
+    
     inline double getResolution() const;
     inline int getNumPoints() const;
     inline int getNumX() const;
@@ -86,14 +87,15 @@ class ReachGraph {
 
     sensor_msgs::msg::PointCloud2 getPCDHigherThan(const double &_ratio);
 
+    static bool setPlaneEquationCoefficients(const std::string &_plane, 
+                                      const double &_plane_dist,
+                                      double &_nx, double &_ny, double &_nz, double &_d);
+
 
  protected:
 
   void calculateDims();
   inline int ref( int _xi, int _yi, int _zi ) const;
-  bool setPlaneEquationCoefficients(const std::string &_plane, 
-                                    const double &_plane_dist,
-                                    double &_nx, double &_ny, double &_nz, double &_d);
 
   reachability_msgs::msg::ChainInfo chain_info_;
   reachability_msgs::msg::ReachParams params_;

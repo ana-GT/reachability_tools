@@ -23,6 +23,12 @@ Build workspace
    colcon build --symlink-install
    ```
    
+Visualize stored reachability
+==============================
+
+```
+ros2 launch reachability_description fetch_load_reachability.launch.py
+```   
    
 Test Reachability
 ==================
@@ -30,6 +36,6 @@ Test Reachability
 1. Start Fetch demo:
    ```
    ros2 launch reachability_demos fetch_reachability_query.launch.py
-   ```   
+   ```
    
    Now you can move the gimbal around, right-click and press Get Pose to see the possible poses
