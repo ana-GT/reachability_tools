@@ -18,7 +18,7 @@ class GenerateRandomPoses : public rclcpp::Node {
      this->declare_parameter<std::string>("urdf_string");
      this->declare_parameter<std::string>("srdf_string");
      this->declare_parameter<std::string>("group_name");          
-     this->declare_parameter<std::string>("robot_name");     
+     this->declare_parameter<std::string>("robot_name");
    }
    
    bool init() {
@@ -27,6 +27,8 @@ class GenerateRandomPoses : public rclcpp::Node {
      this->get_parameter("srdf_string", srdf_string_);
      this->get_parameter("robot_name", robot_name_);
      this->get_parameter("group_name", group_name_);     
+          
+     pub_js_ = this->create_publisher<sensor_msgs::msg::JointState>("/joint_state_command", 10);          
           
      reference_frame_ = "world";
      
@@ -66,22 +68,38 @@ class GenerateRandomPoses : public rclcpp::Node {
      return js;
    }
    
-   bool generateRandomPoses() {
+   bool generateRandomPoses(const int &_view_poses) {
    
      int num_self_collide_confs = 0;
      int num_collision_free_confs = 0;
      
+     std::vector<sensor_msgs::msg::JointState> colliding_states;
      for(int i = 0; i < num_poses_; ++i)
      {      
         auto js = generateRandomPose();
         rco_.update(js);
         if(rco_.selfCollide())
+        {
           num_self_collide_confs++;
+          colliding_states.push_back(js);
+        }
         else 
           num_collision_free_confs++;
      }
      
      RCLCPP_INFO(this->get_logger(), "Self-collision samples: %d. Collision-free: %d. Percentage self-collision: %f", num_self_collide_confs, num_collision_free_confs, (double) num_self_collide_confs / (double) num_collision_free_confs*100.0 );
+     
+     if(colliding_states.size() >= _view_poses)
+     {
+      for(int i = 0; i < _view_poses; ++i) {
+        sensor_msgs::msg::JointState js;
+        js = colliding_states[ rand() % colliding_states.size() ];
+        pub_js_->publish(js);
+        usleep(2.0*1e6);
+      }
+     }
+     
+     
      return true;
    }
 
@@ -95,10 +113,11 @@ class GenerateRandomPoses : public rclcpp::Node {
   std::string reference_frame_;
   std::string robot_name_;
   std::string group_name_;
-  
+   
   std::vector<std::pair<double, double>> joint_limits_;
-
   std::vector<std::string> joint_names_;
+
+  rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr pub_js_;
 
 };
 
@@ -115,8 +134,8 @@ int main(int argc, char* argv[])
    }
 
    RCLCPP_WARN(grp->get_logger(), "Generate random poses");
-   grp->generateRandomPoses();
-  
+   grp->generateRandomPoses(10);
+     
    rclcpp::spin(grp);
    return 0;
 }
