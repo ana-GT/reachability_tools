@@ -10,6 +10,8 @@ set(DEPS
     urdf
     kdl_parser
     srdfdom
+    reachability_msgs
+    robot_unit
 )
 
 foreach(dependency IN ITEMS ${DEPS})

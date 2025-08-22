@@ -3,12 +3,6 @@
 
 #include <math.h>
 
-struct CostData {
-    RobotUnit ru;
-    std::string group;
-    Eigen::Vector3d goal_pos;
-    Eigen::Quaterniond goal_rot;
-};
 
 double cost_function(unsigned n, const double *x, double *grad, void *cost_data)
 {
@@ -19,10 +13,17 @@ double cost_function(unsigned n, const double *x, double *grad, void *cost_data)
     Eigen::Vector3d pos; Eigen::Quaterniond rot;
     Eigen::Vector3d pos_diff; Eigen::Quaterniond rot_diff;
 
-    cd->ru.getFK(x, pos, rot);
 
-    pos_diff = (pos - cd->goal_pos).norm();
-    rot_diff = ;
+    std::vector<double> q;
+    Eigen::Vector3d pos; Eigen::Quaterniond rot;
+    q.resize(n);
+    for(int i = 0; i < n; ++i)
+        q[i] = x[i];
+
+//    cd->re.getFK(cd->goal.group, q, pos, rot);
+
+    pos_diff = (pos - cd->goal.pos).norm();
+    rot_diff = cd->goal.rot.eigen2_dot(rot);
 
     return sqrt( pow(pos_diff, 2) + pow(rot_diff, 2) );
 

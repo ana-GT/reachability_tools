@@ -13,6 +13,7 @@
 RachOptimizer::RachOptimizer() :
 rclcpp::Node("rach_optimizer") {
     this->declare_parameter("urdf_string", std::string(""));
+    this->declare_parameter("srdf_string", std::string(""));    
 
 }
 
@@ -22,11 +23,37 @@ rclcpp::Node("rach_optimizer") {
 bool RachOptimizer::init() {
 
     this->get_parameter("urdf_string", urdf_string_);
+    this->get_parameter("srdf_string", srdf_string_);
 
     if(urdf_string_.empty())
         return false;
 
+    if(srdf_string_.empty())
+        return false;
+
+    // Initialize the robot entity
+    if(!cd_.re.init(urdf_string_, srdf_string_))
+    {
+        RCLCPP_ERROR(this->get_logger(), "Couldn't load robot entity");
+        return false;
+    }    
+
+    setUserInterface();
+
     return true;
+}
+
+void RachOptimizer::setUserInterfaces() {
+
+    // Offer a service 
+    srv_ik_ = this->create_service<reachability_msgs::srv::GetIKPose>("get_ik_pose", 
+                        std::bind(&RachOptimizer::handleIKRequest, this, _1, _2));
+}
+
+void RachOptimizer::handleIKRequest(const std::shared_ptr<reachability_msgs::srv::GetIKPose::Request> req,
+                                    std::shared_ptr<reachability_msgs::srv::GetIKPose::Response> res)
+{
+
 }
 
 bool RachOptimizer::getConfiguration() {
