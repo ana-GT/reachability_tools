@@ -1,18 +1,14 @@
 #pragma once
 
+#include <kdl/chainfksolverpos_recursive.hpp>
 #include <Eigen/Geometry>
-#include <robot_unit/robot_entity.h>
+#include <memory>
 
-struct GoalInfo {
-    std::string group;
-    Eigen::Vector3d pos;
-    Eigen::Quaterniond rot;
+struct ObjectiveData {
+    std::shared_ptr<KDL::ChainFkSolverPos_recursive> fk_solver;
+    Eigen::Vector3d goal_pos;
+    Eigen::Quaterniond goal_rot;
 };
 
-struct CostData {
-    robot_entity::RobotEntity re;
-    GoalInfo goal;
-};
-
-
-double cost_function(unsigned n, const double *x, double *grad, void *cost_data);
+void calculateError(const std::vector<double> &x, double &_error, void *objective_data );
+double cost_function(const std::vector<double> &x, std::vector<double> &grad, void *objective_data);

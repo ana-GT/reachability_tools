@@ -9,6 +9,8 @@ set(DEPS
     rclcpp 
     urdf
     kdl_parser
+    tf2_ros
+    tf2_eigen
     srdfdom
     reachability_msgs
     robot_unit
@@ -30,6 +32,7 @@ add_library(${PROJECT_NAME} SHARED
 src/optimize.cpp 
 src/objective.cpp
 src/constraint.cpp
+src/conversion_utils.cpp
 )
 ament_target_dependencies(${PROJECT_NAME} ${DEPS})
 target_link_libraries(${PROJECT_NAME} ${NLOPT_LIBRARIES})
@@ -50,6 +53,9 @@ install(DIRECTORY include/
   DESTINATION include
 )
 
+install(DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}/
+)
 
 install(TARGETS ${PROJECT_NAME} 
   ${PROJECT_NAME}_node

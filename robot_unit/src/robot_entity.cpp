@@ -220,7 +220,10 @@ bool RobotEntity::getIndices()
       {     
         joint_lower_lim_[ji] = urdf_->getJoint(ji)->limits->lower;
         joint_upper_lim_[ji] = urdf_->getJoint(ji)->limits->upper;
-      } 
+      } else if(urdf_->getJoint(ji)->type == urdf::Joint::CONTINUOUS) {
+        joint_lower_lim_[ji] = -10;
+        joint_upper_lim_[ji] = 10;
+      }
     }
   }
 
@@ -316,13 +319,16 @@ std::vector<std::pair<std::string, std::string>>  RobotEntity::getSrdfDisabledCo
 
 bool RobotEntity::getJointLimits(const std::vector<std::string> &_joint_names,
                                  std::vector<std::pair<double, double> > &_joint_limits)
-{
+{RCLCPP_INFO(rclcpp::get_logger("testa"), "getting joint limits");
   for(auto ji : _joint_names)
   {
+    RCLCPP_INFO(rclcpp::get_logger("testa"), "getting joint limits for %s", ji.c_str());
     if(joint_lower_lim_.find(ji) == joint_lower_lim_.end() ||
        joint_upper_lim_.find(ji) == joint_upper_lim_.end() )
+    {
+    RCLCPP_INFO(rclcpp::get_logger("testa"), "FAILED!! getting joint limits for %s", ji.c_str());
       return false;
-    
+    }
     _joint_limits.push_back(std::pair<double, double>(joint_lower_lim_[ji], joint_upper_lim_[ji]));
   }
 

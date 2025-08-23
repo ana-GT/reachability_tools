@@ -12,9 +12,6 @@ int main(int argc, char* argv[])
     if(!ro->init())
         return false;
 
-
-    RCLCPP_INFO(ro->get_logger(), "Get configuration");    
-    ro->getConfiguration();
-
+    rclcpp::spin(ro);
     return 0;
 }

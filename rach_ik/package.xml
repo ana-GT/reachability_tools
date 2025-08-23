@@ -17,6 +17,8 @@
   <depend>urdf</depend>
   <depend>srdfdom</depend>
   <depend>kdl_parser</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_eigen</depend>
   <depend>reachability_msgs</depend>
   <depend>robot_unit</depend>
   
