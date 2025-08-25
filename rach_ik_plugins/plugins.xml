@@ -1,0 +1,11 @@
+<library path="optimize_relaxed_ik">
+  <class type="rach_ik_plugins::RelaxedIKOptimizer" base_class_type="RachOptimizer">
+    <description>Relaxed optimizer</description>
+  </class>
+</library>
+
+<library path="optimize_low_elbow">
+  <class type="rach_ik_plugins::LowElbowOptimizer" base_class_type="RachOptimizer">
+    <description>Low-elbow optimizer</description>
+  </class>
+</library>

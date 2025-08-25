@@ -4,15 +4,16 @@
 #include <math.h>
 #include <cfloat>
 
-void calculateError(const std::vector<double> &x, double &_error, void *objective_data ) {
+void calculateEEDiff(const std::vector<double> &x, 
+                     double &_dlin, double &_drot, 
+                     void *objective_data ) {
 
     int n = x.size();
     ObjectiveData *od = (ObjectiveData *)objective_data;
 
     // Calculate FK
     Eigen::Vector3d pos; Eigen::Quaterniond rot;
-    double pos_diff; double rot_diff;
- 
+  
     KDL::JntArray q; KDL::Frame tfx;
     double qx, qy, qz, qw;
 
@@ -28,39 +29,8 @@ void calculateError(const std::vector<double> &x, double &_error, void *objectiv
     pos = Eigen::Vector3d(tfx.p.x(), tfx.p.y(),tfx.p.z());
     tfx.M.GetQuaternion(qx, qy, qz, qw);
     rot = Eigen::Quaterniond(qw, qx, qy, qz);
+      RCLCPP_INFO(rclcpp::get_logger("iko"), "curr: %f, %f, %f -- goal: %f, %f, %f", tfx.p.x(), tfx.p.y(),tfx.p.z(), od->goal_pos.x(), od->goal_pos.y(), od->goal_pos.z() );
+    _dlin = (pos - od->goal_pos).norm();
+    _drot = Eigen::AngleAxisd(rot*od->goal_rot.inverse()).angle();
 
-    pos_diff = (pos - od->goal_pos).norm();
-    rot_diff = 0; //od->goal_rot.eigen2_dot(rot);
-
-
-    _error = sqrt( pow(pos_diff, 2) + pow(rot_diff, 2) );
-}
-
-double cost_function(const std::vector<double> &x, std::vector<double> &grad, void *objective_data)
-{
-    double error;
-    calculateError(x, error, objective_data);
-
-
-  // Grad
-  std::vector<double> vals(x);
-
-  double jump = FLT_EPSILON;
-
-  if (!grad.empty())
-  {
-    double v1;
-    for (uint i = 0; i < x.size(); i++)
-    {
-      double original = vals[i];
-
-      vals[i] = original + jump;
-      calculateError(vals, v1, objective_data);
-
-      vals[i] = original;
-      grad[i] = (v1 - error) / (2 * jump);
-    }
-  }
-
-  return error;
 }

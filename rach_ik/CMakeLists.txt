@@ -4,7 +4,6 @@ project(rach_ik)
 add_compile_options(-std=c++17)
 
 find_package(ament_cmake REQUIRED)
-find_package(fcl REQUIRED)
 set(DEPS
     rclcpp 
     urdf
@@ -14,6 +13,7 @@ set(DEPS
     srdfdom
     reachability_msgs
     robot_unit
+    pluginlib
 )
 
 foreach(dependency IN ITEMS ${DEPS})
@@ -25,37 +25,21 @@ find_package(NLopt REQUIRED)
 
 include_directories(
   include
-#  ${LIBFCL_INCLUDE_DIRS}
 )
 
 add_library(${PROJECT_NAME} SHARED
 src/optimize.cpp 
 src/objective.cpp
-src/constraint.cpp
 src/conversion_utils.cpp
 )
 ament_target_dependencies(${PROJECT_NAME} ${DEPS})
 target_link_libraries(${PROJECT_NAME} ${NLOPT_LIBRARIES})
-
-target_include_directories(${PROJECT_NAME} PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-  )
-ament_target_dependencies( ${PROJECT_NAME} ${DEPS})
 
 ############# Nodes ###############
 add_executable(${PROJECT_NAME}_node nodes/rach_ik_node.cpp)
 target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME})
 ament_target_dependencies(${PROJECT_NAME}_node ${DEPS})
 
-
-install(DIRECTORY include/
-  DESTINATION include
-)
-
-install(DIRECTORY launch
-  DESTINATION share/${PROJECT_NAME}/
-)
 
 install(TARGETS ${PROJECT_NAME} 
   ${PROJECT_NAME}_node
@@ -65,21 +49,17 @@ install(TARGETS ${PROJECT_NAME}
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
-
-ament_export_libraries(
-    ${PROJECT_NAME} 
+install(DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION include/${PROJECT_NAME}
+  FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
 )
 
-#ament_export_targets(
-#  export_${PROJECT_NAME}
-#  HAS_LIBRARY_TARGET
-#)
-
-#ament_export_dependencies(${DEPS} fcl)
-
-ament_export_include_directories(
-  include
+install(DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}/
 )
 
+ament_export_include_directories(include)
+ament_export_libraries(${PROJECT_NAME})
+ament_export_dependencies(${DEPS})
 
 ament_package()

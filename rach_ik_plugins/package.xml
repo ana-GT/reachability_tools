@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 
 <package format="2">
-  <name>rach_ik</name>
+  <name>rach_ik_plugins</name>
   <version>1.0.0</version>
   <description>
     Unit of information (collision, FK and IK for a robot)    
@@ -21,7 +21,7 @@
   <depend>tf2_eigen</depend>
   <depend>reachability_msgs</depend>
   <depend>robot_unit</depend>
-  <depend>pluginlib</depend>
+  <depend>rach_ik</depend>
   
   <export>
     <build_type>ament_cmake</build_type>

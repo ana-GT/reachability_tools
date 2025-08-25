@@ -30,7 +30,7 @@ def load_yaml(package_name, file_path):
 def generate_launch_description():
 
     launch_args = [
-        DeclareLaunchArgument("plugin_name", default_value="rach_ik_plugins::RelaxedIKOptimizer"),
+        DeclareLaunchArgument("plugin_name", default_value="rach_ik_plugins::LowElbowOptimizer"),
         DeclareLaunchArgument("group_name", default_value="arm_with_torso")
     ]
 

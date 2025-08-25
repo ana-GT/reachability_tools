@@ -405,19 +405,20 @@ bool RobotEntity::getCollisionMarkers(const std::string &_link,
 }
 
 /**
- * @function getChainGroupState 
+ * @function getChainGroupState
  */
 bool RobotEntity::getChainGroupState(const std::string &_chain_group,
                                      const std::string &_state_name,
-                                     KDL::JntArray &_state)
+                                     std::map<std::string, double> &_state)
 {
+  _state.clear();
 
   reachability_msgs::msg::ChainInfo ci;
   if(!this->getChainInfo(_chain_group, ci))
     return false;
 
   std::vector<srdf::Model::GroupState> gs = srdf_model_->getGroupStates();
-  std::map<std::string, double> sm;
+
   for(auto gi : srdf_model_->getGroupStates())
   {
     if( gi.group_ == _chain_group)
@@ -429,7 +430,7 @@ bool RobotEntity::getChainGroupState(const std::string &_chain_group,
           if(ai.second.size() == 0)
             return false;
 
-          sm[ai.first] = ai.second[0];
+          _state[ai.first] = ai.second[0];
         } // for
 
         break;
@@ -438,13 +439,59 @@ bool RobotEntity::getChainGroupState(const std::string &_chain_group,
     } // if gi.group
   } // for gi
 
-  if(sm.size() != ci.joint_names.size())
+  if(_state.size() != ci.joint_names.size())
     return false;
 
-  _state.data.resize(ci.joint_names.size());
-  for(int i = 0; i < ci.joint_names.size(); ++i)
-    _state(i) = sm[ci.joint_names[i]];
-  
+  return true;
+}
 
+
+
+/**
+ * @function getChainGroupState 
+ */
+bool RobotEntity::getChainGroupState(const std::string &_chain_group,
+                                     const std::string &_state_name,
+                                     KDL::JntArray &_state)
+{
+  std::map<std::string, double> sm;
+  if (!getChainGroupState(_chain_group, _state_name, sm))
+    return false;
+
+  reachability_msgs::msg::ChainInfo ci;
+  if(!this->getChainInfo(_chain_group, ci))
+    return false;
+
+  _state.data.resize(sm.size());
+  
+  int i = 0;
+  for(int i = 0; i < ci.joint_names.size(); ++i)
+  {
+    _state(i) = sm[ci.joint_names[i]];
+    i++;
+  }
+  
+  return true;
+}
+
+bool RobotEntity::getChainGroupState(const std::string &_chain_group,
+                          const std::string &_state_name,
+                          sensor_msgs::msg::JointState &_js)
+{
+
+  std::map<std::string, double> sm;
+  if (!getChainGroupState(_chain_group, _state_name, sm))
+    return false;
+
+  reachability_msgs::msg::ChainInfo ci;
+  if(!this->getChainInfo(_chain_group, ci))
+    return false;
+
+
+  for(int i = 0; i < ci.joint_names.size(); ++i)
+  {
+    _js.name.push_back(ci.joint_names[i]);
+    _js.position.push_back(sm[ci.joint_names[i]]);
+  }
   return true;
 }

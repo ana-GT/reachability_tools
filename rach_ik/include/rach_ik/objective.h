@@ -10,5 +10,7 @@ struct ObjectiveData {
     Eigen::Quaterniond goal_rot;
 };
 
-void calculateError(const std::vector<double> &x, double &_error, void *objective_data );
-double cost_function(const std::vector<double> &x, std::vector<double> &grad, void *objective_data);
+void calculateEEDiff(const std::vector<double> &x,
+                     double &_dlin, double &_drot,  
+                     void *objective_data );
+

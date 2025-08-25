@@ -66,8 +66,15 @@ public:
   bool getChainGroupState(const std::string &_chain_group,
                           const std::string &_state_name,
                           KDL::JntArray &_state);
+  bool getChainGroupState(const std::string &_chain_group,
+                          const std::string &_state_name,
+                          sensor_msgs::msg::JointState &_js);
+
 
 protected:
+  bool getChainGroupState(const std::string &_chain_group,
+                          const std::string &_state_name,
+                          std::map<std::string, double> &_state);
 
   bool getIndices();
   void printInfo();
