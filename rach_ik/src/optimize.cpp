@@ -91,8 +91,8 @@ void RachOptimizer::handleIKRequest(const std::shared_ptr<reachability_msgs::srv
 
     }
 
-    res->success = getConfiguration(group, req->goal_pose, req->init_joint_state, res->solution);
-
+    res->success = getConfiguration(group, req->goal_pose, req->init_joint_state, 
+                   req->mobile, res->solution, res->base_pose);
     return;
 }
 

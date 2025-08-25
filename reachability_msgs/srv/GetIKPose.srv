@@ -1,6 +1,8 @@
 string group_name
 sensor_msgs/JointState init_joint_state
 geometry_msgs/PoseStamped goal_pose
+bool mobile
 ---
 bool success
 sensor_msgs/JointState solution
+geometry_msgs/PoseStamped base_pose

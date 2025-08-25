@@ -41,8 +41,10 @@ protected:
     virtual bool init_() = 0;
     virtual bool getConfiguration( const std::string &_group,
                 const geometry_msgs::msg::PoseStamped &_pose,
-                const sensor_msgs::msg::JointState &_js,
-                sensor_msgs::msg::JointState &_sol) = 0;
+                const sensor_msgs::msg::JointState &_init_js,
+                const bool &_mobile,
+                sensor_msgs::msg::JointState &_sol_arm_config,
+                geometry_msgs::msg::PoseStamped &_sol_base_pose) = 0;
     
     bool getTransform(const std::string &_source, const std::string &_target, Eigen::Isometry3d &_Tfx);
     void setUserInterfaces();

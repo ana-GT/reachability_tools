@@ -16,7 +16,9 @@ public :
     virtual bool getConfiguration( const std::string &_group,
                 const geometry_msgs::msg::PoseStamped &_pose,
                 const sensor_msgs::msg::JointState &_js,
-                sensor_msgs::msg::JointState &_sol);
+                const bool &_mobile,
+                sensor_msgs::msg::JointState &_sol,
+                geometry_msgs::msg::PoseStamped &_base_pose);
 
 protected:
 

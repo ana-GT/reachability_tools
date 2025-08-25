@@ -3,15 +3,15 @@
 #include <rach_ik/optimize.h>
 
 /**
- * @class RachOptimizer
+ * @class MobileHeuristic
  */
 namespace rach_ik_plugins
 {
 
-class LowElbowOptimizer : public RachOptimizer {
+class MobileHeuristicOptimizer : public RachOptimizer {
 
 public :
-    LowElbowOptimizer();
+    MobileHeuristicOptimizer();
     virtual bool init_();
     virtual bool getConfiguration( const std::string &_group,
                 const geometry_msgs::msg::PoseStamped &_pose,
@@ -19,7 +19,6 @@ public :
                 const bool &_mobile,
                 sensor_msgs::msg::JointState &_sol,
                 geometry_msgs::msg::PoseStamped &_base_pose);
-
 protected:
 
     // Constraints

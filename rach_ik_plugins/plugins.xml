@@ -9,3 +9,9 @@
     <description>Low-elbow optimizer</description>
   </class>
 </library>
+
+<library path="optimize_mobile_heuristic">
+  <class type="rach_ik_plugins::MobileHeuristicOptimizer" base_class_type="RachOptimizer">
+    <description>Low-elbow optimizer</description>
+  </class>
+</library>

@@ -35,7 +35,15 @@ bool RelaxedIKOptimizer::init_() {
 bool RelaxedIKOptimizer::getConfiguration( const std::string &_group,
                 const geometry_msgs::msg::PoseStamped &_pose,
                 const sensor_msgs::msg::JointState &_js,
-                sensor_msgs::msg::JointState &_sol) {
+                const bool &_mobile,
+                sensor_msgs::msg::JointState &_sol,
+                geometry_msgs::msg::PoseStamped &_base_pose) {
+
+   if(_mobile)
+   {
+     RCLCPP_ERROR(this->get_logger(), "RelaxedIK does not support mobile IK");
+     return false;
+   }
 
   Eigen::Isometry3d Tfx_root_ref, Tfx_ref, Tfx_root;
   getTransform(group_info_[_group].root_link, _pose.header.frame_id, Tfx_root_ref);

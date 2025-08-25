@@ -1,8 +1,8 @@
 /**
  * @file optimize_low_elbow.cpp
  */
-#include <rach_ik_plugins/optimize_low_elbow.h>
-#include <rach_ik_plugins/objectives/objective_ee_diff.h>
+#include <rach_ik_plugins/optimize_mobile_heuristic.h>
+#include <rach_ik_plugins/objectives/objective_mobile_ee_diff.h>
 #include <rach_ik_plugins/constraints/constraint_elbow_wrist.h>
 
 #include <nlopt.hpp>
@@ -11,10 +11,10 @@ namespace rach_ik_plugins
 {
 
 /**
- * @function LowElbowOptimizer
+ * @function MobileHeuristicOptimizer
  * @brief Constructor
  */
-LowElbowOptimizer::LowElbowOptimizer() :
+MobileHeuristicOptimizer::MobileHeuristicOptimizer() :
 RachOptimizer() {
 
     this->declare_parameter("reference_poses", std::vector<std::string>());    
@@ -25,7 +25,7 @@ RachOptimizer() {
 /**
  * @function init
  */
-bool LowElbowOptimizer::init_() {
+bool MobileHeuristicOptimizer::init_() {
 
     this->get_parameter("reference_poses", reference_poses_);
     this->get_parameter("wrist_link", wrist_link_);
@@ -44,20 +44,20 @@ bool LowElbowOptimizer::init_() {
 /**
  * @function getConfiguration
  */
-bool LowElbowOptimizer::getConfiguration( const std::string &_group,
+bool MobileHeuristicOptimizer::getConfiguration( const std::string &_group,
                 const geometry_msgs::msg::PoseStamped &_pose,
                 const sensor_msgs::msg::JointState &_js,
                 const bool &_mobile,
                 sensor_msgs::msg::JointState &_sol,
                 geometry_msgs::msg::PoseStamped &_base_pose) {
 
-   if(_mobile)
+   if(!_mobile)
    {
-     RCLCPP_ERROR(this->get_logger(), "LowElbowOptimizer does not support mobile IK");
+     RCLCPP_ERROR(this->get_logger(), "MobileHeuristicOptimizer only supports mobile IK");
      return false;
    }
 
-  // Optional       
+  // Optional
   int index = 0;
   for(auto si : group_info_[_group].chain.segments)
   {
@@ -69,24 +69,46 @@ bool LowElbowOptimizer::getConfiguration( const std::string &_group,
     index++;
   }
 
-  Eigen::Isometry3d Tfx_root_ref, Tfx_ref, Tfx_root;
-  getTransform(group_info_[_group].root_link, _pose.header.frame_id, Tfx_root_ref);
-  tf2::fromMsg(_pose.pose, Tfx_ref);
-  Tfx_root = Tfx_root_ref * Tfx_ref;
+  // Cost
+  // Tf_world_ee = Tf_world_base * Tf_base_root * FK(q)
+  // Base_FK(x, y, theta, q) = Tf(x, y, theta) * Tfixed_base_root * FK(q)
 
-  nlopt::opt opt(nlopt::LD_MMA, group_info_[_group].joint_names.size()); //LN_COBYLA
+  // Get transform base_root
+  Eigen::Isometry3d Tf_base_root, Tfx_ref_base;
+  std::string robot_base;
+  robot_base = robot_entity_->getRootLinkName();
+  getTransform(robot_base, group_info_[_group].root_link, Tf_base_root); 
+
+  // Get init values for x
+  double x0, y0, alpha0;
+  getTransform(_pose.header.frame_id, robot_base, Tfx_ref_base); 
+  fromTfPlanar(Tfx_ref_base, x0, y0, alpha0);
+
+  int num_vars = group_info_[_group].joint_names.size() + 3;
+  nlopt::opt opt(nlopt::LD_MMA, num_vars); //LN_COBYLA
 
   // Limits
-  opt.set_lower_bounds(group_info_[_group].lower_bounds);
-  opt.set_upper_bounds(group_info_[_group].upper_bounds);
+  std::vector<double> lb = group_info_[_group].lower_bounds;
+  std::vector<double> ub = group_info_[_group].upper_bounds;
+  
+  for(int i = 0; i < 3; ++i)
+  {
+    lb.push_back(-10.0);
+    ub.push_back(10.0);
+  }   
+  opt.set_lower_bounds(lb);
+  opt.set_upper_bounds(ub);
+
+  Eigen::Isometry3d Tf_ref_root;
+  tf2::fromMsg(_pose.pose, Tf_ref_root);
 
   // Fill ObjectiveData
-  ObjectiveData od;
+  MobileObjectiveData od;
   od.fk_solver = group_info_[_group].fk_solver;
-  od.goal_pos = Tfx_root.translation();
-  od.goal_rot = Tfx_root.rotation();
-  
-  opt.set_min_objective(cost_ee_diff_function, &od);
+  od.goal_pos = Tf_ref_root.translation();
+  od.goal_rot = Tf_ref_root.rotation();
+  od.Tf_base_root = Tf_base_root; 
+  opt.set_min_objective(cost_mobile_ee_diff_function, &od);
 
   // Fill constraint data
   ConstraintData cd;
@@ -106,14 +128,22 @@ bool LowElbowOptimizer::getConfiguration( const std::string &_group,
     robot_entity_->getChainGroupState(_group, "pose_left_0_high", js);
 
   jointStateToVector(js, x);
-
+  x.push_back(x0); x.push_back(y0); x.push_back(alpha0);
+  
   double minf;
   bool ret;
 
   try {
     nlopt::result result = opt.optimize(x, minf);
     _sol.name = js.name;
-    _sol.position = x;
+    for(int i = 0; i < num_vars - 3; ++i)
+      _sol.position.push_back(x[i]);
+      
+    Eigen::Isometry3d Tfg;
+    Tfg = getTfPlanar(x[num_vars-3], x[num_vars-2], x[num_vars-1]);  
+    _base_pose.pose = tf2::toMsg(Tfg);
+    _base_pose.header.frame_id = _pose.header.frame_id;
+      
     ret = (result >= 0);
     RCLCPP_INFO(this->get_logger(), "*** Found minimum: %d", ret);
 
@@ -129,4 +159,4 @@ bool LowElbowOptimizer::getConfiguration( const std::string &_group,
 
 #include <pluginlib/class_list_macros.hpp>
 
-PLUGINLIB_EXPORT_CLASS(rach_ik_plugins::LowElbowOptimizer, RachOptimizer)
+PLUGINLIB_EXPORT_CLASS(rach_ik_plugins::MobileHeuristicOptimizer, RachOptimizer)

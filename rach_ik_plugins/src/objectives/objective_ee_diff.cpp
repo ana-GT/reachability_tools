@@ -1,6 +1,5 @@
 
 #include <rach_ik_plugins/objectives/objective_ee_diff.h>
-#include <rclcpp/rclcpp.hpp>
 #include <cfloat>
 
 double cost_ee_diff_function(const std::vector<double> &x, std::vector<double> &grad, void *objective_data)
