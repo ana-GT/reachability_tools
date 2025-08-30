@@ -3,23 +3,28 @@
 #include <rviz_common/properties/parse_color.hpp>
 #include <rviz_common/logging.hpp>
 #include <rviz_default_plugins/displays/pointcloud/point_cloud_to_point_cloud2.hpp>
+#include <Eigen/Geometry>
+
 namespace reachability_viz
 {
 using rviz_common::properties::StatusProperty;
 
 ReachabilityDisplay::ReachabilityDisplay() 
-: point_cloud_common_(std::make_unique<rviz_default_plugins::PointCloudCommon>(this))
+: point_cloud_common_(std::make_unique<rviz_default_plugins::PointCloudCommon>(this)),
+  marker_common_(std::make_unique<rviz_default_plugins::displays::MarkerCommon>(this))
 {
  nx_ = 0; ny_ = 0; nz_ = 0; plane_dist_ = 0.0;
+ top_best_ = 100;
 }
 
 void ReachabilityDisplay::onInitialize()
 {
   rviz_common::MessageFilterDisplay<reachability_msgs::msg::ReachGraphStamped>::onInitialize();
   point_cloud_common_->initialize(context_, scene_node_);
+  marker_common_->initialize(context_, scene_node_);
   
   plane_property_ = std::make_unique<rviz_common::properties::EnumProperty>(
-    "Plane", QString("XY+"), "Plane to slice", this, SLOT(updateSlice()));
+    "Plane", QString("FULL"), "Plane to slice", this, SLOT(updateSlice()));
     
   plane_property_->addOptionStd("XY+", 0);
   plane_property_->addOptionStd("XY-", 1);
@@ -27,9 +32,13 @@ void ReachabilityDisplay::onInitialize()
   plane_property_->addOptionStd("XZ-", 3);
   plane_property_->addOptionStd("YZ+", 4);
   plane_property_->addOptionStd("YZ-", 5);
+  plane_property_->addOptionStd("FULL", 6);  
 
   plane_distance_property_ = std::make_unique<rviz_common::properties::FloatProperty>("offset", 0.0, "plane offset", this, SLOT(updateSlice()));
-            
+  top_best_metric_property_ = std::make_unique<rviz_common::properties::IntProperty>("top_best", 100, "% best", this, SLOT(updateSlice()));
+  top_best_metric_property_->setMin(0);
+  top_best_metric_property_->setMax(100);
+              
   updateSlice();
   
 }
@@ -52,9 +61,14 @@ void ReachabilityDisplay::updateSlice()
    case 4:
      plane = "YZ+"; break;
    case 5:
-     plane = "YZ-"; break;          
+     plane = "YZ-"; break;
+   case 6:
+     plane = "FULL"; break; 
   }
   double dist = (double)plane_distance_property_->getFloat();
+
+  int top_best = top_best_metric_property_->getInt();
+  top_best_ = (double)top_best/100.0;
   
   setPlaneEquationCoefficients(plane, dist, nx_, ny_, nz_, plane_dist_);
   
@@ -68,10 +82,12 @@ void ReachabilityDisplay::processMessage(const reachability_msgs::msg::ReachGrap
 {
   last_msg_ = msg;
   
-  RCLCPP_INFO(rclcpp::get_logger("reach_display"), "process message!");
   sensor_msgs::msg::PointCloud::SharedPtr cloud;
   cloud.reset(new sensor_msgs::msg::PointCloud());
   cloud->header = msg->header;
+
+  visualization_msgs::msg::MarkerArray::SharedPtr marker;
+  marker.reset(new visualization_msgs::msg::MarkerArray());
 
   RCLCPP_INFO(rclcpp::get_logger("reach_display"), "Num points received: %d! cloud frame: %s", msg->data.points.size(), cloud->header.frame_id.c_str());
 
@@ -82,6 +98,21 @@ void ReachabilityDisplay::processMessage(const reachability_msgs::msg::ReachGrap
   sensor_msgs::msg::ChannelFloat32 c;  
   c.name = "rgb";
   cloud->channels.push_back(c);
+  
+  // Get min and max number of samples
+  int min_samples, max_samples;
+  min_samples = 1000;
+  max_samples = 0;
+  for(auto pi : msg->data.points)
+  {
+     auto num = pi.samples.size();
+     if (num < min_samples)
+       min_samples = num;
+     if (num > max_samples)
+       max_samples = num;
+  }  
+  
+  int id = 0;
   for(auto pi : msg->data.points)
   {
     geometry_msgs::msg::Point32 p;
@@ -99,7 +130,9 @@ void ReachabilityDisplay::processMessage(const reachability_msgs::msg::ReachGrap
       continue;
 
  
-    ratio = (float) pi.samples.size() / (float) msg->data.params.num_voxel_samples;
+    //ratio = (float) pi.samples.size() / (float) msg->data.params.num_voxel_samples;
+    ratio = (float)(pi.samples.size() - min_samples) / (float)(max_samples - min_samples);
+    
     red = ratio > 0.5? 1.0 - 2.0*(ratio - 0.5) : 1.0;
     green = ratio > 0.5? 1.0 : 2.0*ratio;
 
@@ -109,9 +142,45 @@ void ReachabilityDisplay::processMessage(const reachability_msgs::msg::ReachGrap
     uint32_t col = (r << 16) + (g << 8) + b;
     color = *reinterpret_cast<float*>( &col );
     
-    cloud->points.push_back(p);
-    cloud->channels[0].values.push_back(color);
-        
+    // Only visualize the X% best
+    if(ratio > (1.0 - top_best_)) {
+    
+      cloud->points.push_back(p);
+      cloud->channels[0].values.push_back(color);
+      
+      
+      visualization_msgs::msg::Marker mi;
+      double l = 0.03;
+      mi.scale.x = 0.005;
+      mi.pose.orientation.w = 1.0;
+      mi.color.r = 0.4; mi.color.g = 0.1; mi.color.b = 0.4; mi.color.a = 1.0;
+      mi.header.frame_id = last_msg_->header.frame_id;
+      mi.header.stamp = rclcpp::Time(0, 0);
+      mi.type = visualization_msgs::msg::Marker::LINE_LIST;
+      for(auto si : pi.samples)
+      {
+         geometry_msgs::msg::Point p1, p2;
+         p1.x = 0; p1.y = 0; p1.z = 0;
+                           
+         //
+         Eigen::Quaterniond q(si.pose.orientation.w, si.pose.orientation.x, si.pose.orientation.y, si.pose.orientation.z);
+         Eigen::Matrix3d m; m = q.toRotationMatrix();
+         
+         p1.x = si.pose.position.x;
+         p1.y = si.pose.position.y;
+         p1.z = si.pose.position.z;
+                          
+         p2.x = p1.x + m.col(2).x()*l;
+         p2.y = p1.y + m.col(2).y()*l;
+         p2.z = p1.z + m.col(2).z()*l;
+                                                      
+         mi.points.push_back(p1);
+         mi.points.push_back(p2);
+      }
+      mi.id = id;
+      id++;
+      marker->markers.push_back(mi);
+    }        
   }
 
   RCLCPP_INFO(rclcpp::get_logger("reach_display"), "Cloud size: %d", cloud->points.size());
@@ -119,18 +188,24 @@ void ReachabilityDisplay::processMessage(const reachability_msgs::msg::ReachGrap
   
   auto pc2 = rviz_default_plugins::convertPointCloudToPointCloud2(cloud);
   RCLCPP_INFO(rclcpp::get_logger("reach_display"), "Pc2: header: %s, height: %d width: %d data size: %d", pc2->header.frame_id.c_str(), pc2->height, pc2->width, pc2->data.size());
-  point_cloud_common_->addMessage(cloud);  
+  
+  // Visualize
+  point_cloud_common_->addMessage(cloud);    
+  marker_common_->addMessage(marker);
 }
 
 void ReachabilityDisplay::update(float wall_dt, float ros_dt)
 {
    point_cloud_common_->update(wall_dt, ros_dt);
+   marker_common_->update(wall_dt, ros_dt);
 }
 
 void ReachabilityDisplay::reset()
 {
    rviz_common::MessageFilterDisplay<reachability_msgs::msg::ReachGraphStamped>::reset();
    point_cloud_common_->reset();
+   
+   marker_common_->clearMarkers();
 }
 
 void ReachabilityDisplay::onDisable()
