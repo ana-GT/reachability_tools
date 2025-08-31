@@ -15,17 +15,19 @@ ReachabilityDisplay::ReachabilityDisplay()
 {
  nx_ = 0; ny_ = 0; nz_ = 0; plane_dist_ = 0.0;
  top_best_ = 100;
-}
+ show_orientation_ = false;
 
-void ReachabilityDisplay::onInitialize()
-{
-  rviz_common::MessageFilterDisplay<reachability_msgs::msg::ReachGraphStamped>::onInitialize();
-  point_cloud_common_->initialize(context_, scene_node_);
-  marker_common_->initialize(context_, scene_node_);
+  reach_properties_ = new rviz_common::properties::Property("Reachability", QVariant(),"", this);
+  plane_distance_property_ = new rviz_common::properties::FloatProperty("offset", 0.0, "plane offset", reach_properties_, SLOT(updateSlice()), this);
+  top_best_metric_property_ = new rviz_common::properties::IntProperty("top_best", 100, "% best", reach_properties_, SLOT(updateSlice()), this);  
+  plane_property_ = new rviz_common::properties::EnumProperty("Plane", QString("FULL"), "Plane to slice", reach_properties_, SLOT(updateSlice()), this);
+
+  plane_distance_property_->setMin(-2.0);
+  plane_distance_property_->setMax(2.0);
   
-  plane_property_ = std::make_unique<rviz_common::properties::EnumProperty>(
-    "Plane", QString("FULL"), "Plane to slice", this, SLOT(updateSlice()));
-    
+  top_best_metric_property_->setMin(0);
+  top_best_metric_property_->setMax(100);
+
   plane_property_->addOptionStd("XY+", 0);
   plane_property_->addOptionStd("XY-", 1);
   plane_property_->addOptionStd("XZ+", 2);
@@ -34,18 +36,26 @@ void ReachabilityDisplay::onInitialize()
   plane_property_->addOptionStd("YZ-", 5);
   plane_property_->addOptionStd("FULL", 6);  
 
-  plane_distance_property_ = std::make_unique<rviz_common::properties::FloatProperty>("offset", 0.0, "plane offset", this, SLOT(updateSlice()));
-  top_best_metric_property_ = std::make_unique<rviz_common::properties::IntProperty>("top_best", 100, "% best", this, SLOT(updateSlice()));
-  top_best_metric_property_->setMin(0);
-  top_best_metric_property_->setMax(100);
-              
+  orientation_property_ = new rviz_common::properties::Property("show_orientation", false, "show orientation", reach_properties_, SLOT(updateSlice()), this);
+
+}
+
+void ReachabilityDisplay::onInitialize()
+{
+  rviz_common::MessageFilterDisplay<reachability_msgs::msg::ReachGraphStamped>::onInitialize();
+  point_cloud_common_->initialize(context_, scene_node_);
+  marker_common_->initialize(context_, scene_node_);
+                  
   updateSlice();
   
 }
 
 void ReachabilityDisplay::updateSlice()
 {
-  // Get plane and distance
+  // Get orientation property
+  show_orientation_ = orientation_property_->getValue().toBool();
+
+  // Get plane and distance	
   int plane_int = plane_property_->getOptionInt();
   std::string plane;
   switch(plane_int)
@@ -71,7 +81,7 @@ void ReachabilityDisplay::updateSlice()
   top_best_ = (double)top_best/100.0;
   
   setPlaneEquationCoefficients(plane, dist, nx_, ny_, nz_, plane_dist_);
-  
+
   if(last_msg_)
     processMessage(last_msg_);
 }
@@ -81,7 +91,7 @@ void ReachabilityDisplay::updateSlice()
 void ReachabilityDisplay::processMessage(const reachability_msgs::msg::ReachGraphStamped::ConstSharedPtr msg)
 {
   last_msg_ = msg;
-  
+  this->reset();
   sensor_msgs::msg::PointCloud::SharedPtr cloud;
   cloud.reset(new sensor_msgs::msg::PointCloud());
   cloud->header = msg->header;
@@ -89,10 +99,10 @@ void ReachabilityDisplay::processMessage(const reachability_msgs::msg::ReachGrap
   visualization_msgs::msg::MarkerArray::SharedPtr marker;
   marker.reset(new visualization_msgs::msg::MarkerArray());
 
-  RCLCPP_INFO(rclcpp::get_logger("reach_display"), "Num points received: %d! cloud frame: %s", msg->data.points.size(), cloud->header.frame_id.c_str());
+  RCLCPP_INFO(rclcpp::get_logger("reach_display"), "Num points received: %ld! cloud frame: %s", msg->data.points.size(), cloud->header.frame_id.c_str());
 
   float color;
-  uint8_t r, g, b, a;
+  uint8_t r, g, b;
   float ratio, green, red;
 
   sensor_msgs::msg::ChannelFloat32 c;  
@@ -101,16 +111,8 @@ void ReachabilityDisplay::processMessage(const reachability_msgs::msg::ReachGrap
   
   // Get min and max number of samples
   int min_samples, max_samples;
-  min_samples = 1000;
-  max_samples = 0;
-  for(auto pi : msg->data.points)
-  {
-     auto num = pi.samples.size();
-     if (num < min_samples)
-       min_samples = num;
-     if (num > max_samples)
-       max_samples = num;
-  }  
+
+  getMinMaxSamples(msg, min_samples, max_samples);
   
   int id = 0;
   for(auto pi : msg->data.points)
@@ -126,7 +128,7 @@ void ReachabilityDisplay::processMessage(const reachability_msgs::msg::ReachGrap
     p.z = position.z;    
  
     // If not above plane, don't show point
-    if( nx_*p.x + ny_*p.y + nz_*p.z + plane_dist_ < 0.0)
+    if( nx_*p.x + ny_*p.y + nz_*p.z - plane_dist_ < 0.0)
       continue;
 
  
@@ -148,50 +150,97 @@ void ReachabilityDisplay::processMessage(const reachability_msgs::msg::ReachGrap
       cloud->points.push_back(p);
       cloud->channels[0].values.push_back(color);
       
-      
-      visualization_msgs::msg::Marker mi;
-      double l = 0.03;
-      mi.scale.x = 0.005;
-      mi.pose.orientation.w = 1.0;
-      mi.color.r = 0.4; mi.color.g = 0.1; mi.color.b = 0.4; mi.color.a = 1.0;
-      mi.header.frame_id = last_msg_->header.frame_id;
-      mi.header.stamp = rclcpp::Time(0, 0);
-      mi.type = visualization_msgs::msg::Marker::LINE_LIST;
-      for(auto si : pi.samples)
+      if(show_orientation_)
       {
-         geometry_msgs::msg::Point p1, p2;
-         p1.x = 0; p1.y = 0; p1.z = 0;
-                           
-         //
-         Eigen::Quaterniond q(si.pose.orientation.w, si.pose.orientation.x, si.pose.orientation.y, si.pose.orientation.z);
-         Eigen::Matrix3d m; m = q.toRotationMatrix();
-         
-         p1.x = si.pose.position.x;
-         p1.y = si.pose.position.y;
-         p1.z = si.pose.position.z;
-                          
-         p2.x = p1.x + m.col(2).x()*l;
-         p2.y = p1.y + m.col(2).y()*l;
-         p2.z = p1.z + m.col(2).z()*l;
-                                                      
-         mi.points.push_back(p1);
-         mi.points.push_back(p2);
+         auto ms = generateArrowVizSample(pi, id);
+         for(auto ii : ms)
+           marker->markers.push_back( ii); // marker->markers.end(), ms.begin(), ms.end()
       }
-      mi.id = id;
-      id++;
-      marker->markers.push_back(mi);
-    }        
-  }
+    } // if ratio > top_best
+            
+  } // for pi msg.data.points
 
-  RCLCPP_INFO(rclcpp::get_logger("reach_display"), "Cloud size: %d", cloud->points.size());
- 
   
   auto pc2 = rviz_default_plugins::convertPointCloudToPointCloud2(cloud);
-  RCLCPP_INFO(rclcpp::get_logger("reach_display"), "Pc2: header: %s, height: %d width: %d data size: %d", pc2->header.frame_id.c_str(), pc2->height, pc2->width, pc2->data.size());
+  RCLCPP_INFO(rclcpp::get_logger("reach_display"), "Pc2: header: %s, height: %d width: %d data size: %ld", pc2->header.frame_id.c_str(), pc2->height, pc2->width, pc2->data.size());
   
   // Visualize
   point_cloud_common_->addMessage(cloud);    
   marker_common_->addMessage(marker);
+}
+
+/**
+ * @function getMinMaxSamples
+ */
+void ReachabilityDisplay::getMinMaxSamples(const reachability_msgs::msg::ReachGraphStamped::ConstSharedPtr &_msg, int &_min_samples, int &_max_samples) {
+
+  _min_samples = 1000;
+  _max_samples = 0;
+
+  for(auto pi : _msg->data.points)
+  {
+     auto num = pi.samples.size();
+     if (num < _min_samples)
+       _min_samples = num;
+     if (num > _max_samples)
+       _max_samples = num;
+  }
+}
+
+/**
+ * @function generateArrowVizSample
+ */
+std::vector<visualization_msgs::msg::Marker> ReachabilityDisplay::generateArrowVizSample(const reachability_msgs::msg::ReachData &_pi, int &_start_id)
+{
+  std::vector<visualization_msgs::msg::Marker> sample_markers;
+
+  double l = 0.03;
+  
+  for(auto si : _pi.samples)
+  {
+    geometry_msgs::msg::Point p1, p2;
+
+    Eigen::Quaterniond q(si.pose.orientation.w, si.pose.orientation.x, si.pose.orientation.y, si.pose.orientation.z);
+    Eigen::Matrix3d m; m = q.toRotationMatrix();
+         
+    p2.x = si.pose.position.x;
+    p2.y = si.pose.position.y;
+    p2.z = si.pose.position.z;
+                          
+    p1.x = p2.x - m.col(2).x()*l;
+    p1.y = p2.y - m.col(2).y()*l;
+    p1.z = p2.z - m.col(2).z()*l;
+
+    visualization_msgs::msg::Marker mi;
+    fillDefaultArrowMarker(mi, 0.4, 0.1, 0.4, 1.0);
+                                                      
+    mi.points.push_back(p1);
+    mi.points.push_back(p2);
+    mi.id = _start_id;
+    
+    _start_id++;
+
+    sample_markers.push_back(mi);
+  } // end for
+
+  return sample_markers;
+}
+
+/**
+ * @function fillDefaultArrowMarker
+ */
+void ReachabilityDisplay::fillDefaultArrowMarker(visualization_msgs::msg::Marker &_mi, const double &_r, const double &_g, const double &_b, const double &_a)
+{
+  _mi.scale.x = 0.0025; // shaft diameter
+  _mi.scale.y = 0.005; // head diameter
+  _mi.scale.z = 0.005; // head length (if specified)
+  _mi.pose.orientation.w = 1.0;
+  _mi.color.r = _r; _mi.color.g = _g; _mi.color.b = _b; _mi.color.a = _a;
+  _mi.header.frame_id = last_msg_->header.frame_id;
+  
+  _mi.header.stamp = rclcpp::Time(0, 0);
+  _mi.type = visualization_msgs::msg::Marker::ARROW;
+
 }
 
 void ReachabilityDisplay::update(float wall_dt, float ros_dt)
@@ -222,17 +271,17 @@ bool ReachabilityDisplay::setPlaneEquationCoefficients(const std::string &_plane
                                               double &_nx, double &_ny, double &_nz, double &_d)
 {
   if(_plane == std::string("XY+"))
-    { _nx = 0; _ny = 0; _nz = -1.0; _d = _plane_dist; }
+    { _nx = 0; _ny = 0; _nz = 1.0; _d = _plane_dist; }
   else if(_plane == std::string("XY-"))
-    { _nx = 0; _ny = 0; _nz = 1.0; _d = -_plane_dist; } 
+    { _nx = 0; _ny = 0; _nz = -1.0; _d = _plane_dist; } 
   else if(_plane == std::string("XZ+"))
-    { _nx = 0; _ny = -1.0; _nz = 0.0; _d = _plane_dist; }
+    { _nx = 0; _ny = 1.0; _nz = 0.0; _d = _plane_dist; }
   else if(_plane == std::string("XZ-"))
-    { _nx = 0; _ny = 1.0; _nz = 0.0; _d = -_plane_dist; } 
+    { _nx = 0; _ny = -1.0; _nz = 0.0; _d = _plane_dist; } 
   else if(_plane == std::string("YZ+"))
-    { _nx = -1.0; _ny = 0.0; _nz = 0.0; _d = _plane_dist; }
+    { _nx = 1.0; _ny = 0.0; _nz = 0.0; _d = _plane_dist; }
   else if(_plane == std::string("YZ-"))
-    { _nx = 1.0; _ny = 0; _nz = 0.0; _d = -_plane_dist; } 
+    { _nx = -1.0; _ny = 0; _nz = 0.0; _d = _plane_dist; } 
   else if(_plane == std::string("FULL"))
   { _nx = 0; _ny = 0; _nz = 0; _d = 0; }
   else

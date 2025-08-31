@@ -52,12 +52,14 @@ install(TARGETS reachability_display
 install(DIRECTORY include/
         DESTINATION include
 )
+install(DIRECTORY icons
+        DESTINATION "share/${PROJECT_NAME}"
+)
+
 install(FILES rviz_common_plugins.xml
         DESTINATION share/${PROJECT_NAME}
 )
-#install(FILES icons/classes/reachability.png
-#        DESTINATION share/${PROJECT_NAME}/icons/classes
-#)
+
 ament_export_include_directories(include)
 ament_export_targets(export_${PROJECT_NAME})
 

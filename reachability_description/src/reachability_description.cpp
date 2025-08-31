@@ -205,16 +205,7 @@ bool ReachabilityDescription::viewDescription(const std::string &_chain_group)
 
   sensor_msgs::msg::PointCloud2 msg;
   msg = reach_graph_[_chain_group]->getPCD(plane, plane_dist);
-  //msg = reach_graph_->getPCDHigherThan(0.2);
-/*
-  rclcpp::Rate r(1.0);
-  for(unsigned int i = 0; i < 10; ++i)
-  {
-    pub_reach_->publish(msg);
-    r.sleep();
-    rclcpp::spin_some(node_);
-  }
-*/
+
   reachability_msgs::msg::ReachGraphStamped rgs_msg;
 
   auto rgs = this->getReachGraph(_chain_group);  
