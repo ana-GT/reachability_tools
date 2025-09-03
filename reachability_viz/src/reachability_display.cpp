@@ -21,6 +21,8 @@ ReachabilityDisplay::ReachabilityDisplay()
   plane_distance_property_ = new rviz_common::properties::FloatProperty("offset", 0.0, "plane offset", reach_properties_, SLOT(updateSlice()), this);
   top_best_metric_property_ = new rviz_common::properties::IntProperty("top_best", 100, "% best", reach_properties_, SLOT(updateSlice()), this);  
   plane_property_ = new rviz_common::properties::EnumProperty("Plane", QString("FULL"), "Plane to slice", reach_properties_, SLOT(updateSlice()), this);
+  orientation_property_ = new rviz_common::properties::Property("show_orientation", false, "show orientation", reach_properties_, SLOT(updateSlice()), this);
+  layer_property_ = new rviz_common::properties::BoolProperty("single_layer", false, "show a layer", reach_properties_, SLOT(updateSlice()), this);
 
   plane_distance_property_->setMin(-2.0);
   plane_distance_property_->setMax(2.0);
@@ -36,7 +38,6 @@ ReachabilityDisplay::ReachabilityDisplay()
   plane_property_->addOptionStd("YZ-", 5);
   plane_property_->addOptionStd("FULL", 6);  
 
-  orientation_property_ = new rviz_common::properties::Property("show_orientation", false, "show orientation", reach_properties_, SLOT(updateSlice()), this);
 
 }
 
@@ -54,7 +55,8 @@ void ReachabilityDisplay::updateSlice()
 {
   // Get orientation property
   show_orientation_ = orientation_property_->getValue().toBool();
-
+  show_just_one_layer_ = layer_property_->getValue().toBool();
+  
   // Get plane and distance	
   int plane_int = plane_property_->getOptionInt();
   std::string plane;
@@ -92,6 +94,7 @@ void ReachabilityDisplay::processMessage(const reachability_msgs::msg::ReachGrap
 {
   last_msg_ = msg;
   this->reset();
+
   sensor_msgs::msg::PointCloud::SharedPtr cloud;
   cloud.reset(new sensor_msgs::msg::PointCloud());
   cloud->header = msg->header;
@@ -101,13 +104,10 @@ void ReachabilityDisplay::processMessage(const reachability_msgs::msg::ReachGrap
 
   RCLCPP_INFO(rclcpp::get_logger("reach_display"), "Num points received: %ld! cloud frame: %s", msg->data.points.size(), cloud->header.frame_id.c_str());
 
-  float color;
-  uint8_t r, g, b;
-  float ratio, green, red;
-
   sensor_msgs::msg::ChannelFloat32 c;  
   c.name = "rgb";
   cloud->channels.push_back(c);
+  float ratio, color;  
   
   // Get min and max number of samples
   int min_samples, max_samples;
@@ -116,46 +116,38 @@ void ReachabilityDisplay::processMessage(const reachability_msgs::msg::ReachGrap
   
   int id = 0;
   for(auto pi : msg->data.points)
-  {
-    geometry_msgs::msg::Point32 p;
-        
+  {        
     if(pi.samples.empty())
       continue;
           
-    auto position = pi.samples[0].pose.position;
-    p.x = position.x;
-    p.y = position.y;
-    p.z = position.z;    
- 
-    // If not above plane, don't show point
-    if( nx_*p.x + ny_*p.y + nz_*p.z - plane_dist_ < 0.0)
-      continue;
+    if(!isAbovePlane(pi.samples[0].pose.position, !show_just_one_layer_))
+      continue;      
 
+    auto po = pi.samples[0].pose.position;
+    geometry_msgs::msg::Point32 p;
+    p.x = po.x; p.y = po.y; p.z = po.z;
  
     //ratio = (float) pi.samples.size() / (float) msg->data.params.num_voxel_samples;
     ratio = (float)(pi.samples.size() - min_samples) / (float)(max_samples - min_samples);
-    
-    red = ratio > 0.5? 1.0 - 2.0*(ratio - 0.5) : 1.0;
-    green = ratio > 0.5? 1.0 : 2.0*ratio;
 
-    r = (uint8_t)std::floor((int) (red*255.0)); 
-    g = (uint8_t)std::floor((int) (green*255.0)); 
-    b = 0x00;
-    uint32_t col = (r << 16) + (g << 8) + b;
-    color = *reinterpret_cast<float*>( &col );
+    getColorGradient(ratio, color);
     
     // Only visualize the X% best
     if(ratio > (1.0 - top_best_)) {
-    
-      cloud->points.push_back(p);
-      cloud->channels[0].values.push_back(color);
       
+      cloud->points.push_back(p);
+      if(top_best_ < 0.20)
+      {
+
+        RCLCPP_INFO(rclcpp::get_logger("reach_display"), "Added p %f %f %f with samples: %ld", p.x, p.y, p.z, pi.samples.size());
+      }
+      cloud->channels[0].values.push_back(color);
       if(show_orientation_)
       {
          auto ms = generateArrowVizSample(pi, id);
-         for(auto ii : ms)
-           marker->markers.push_back( ii); // marker->markers.end(), ms.begin(), ms.end()
+         marker->markers.insert(marker->markers.end(), ms.begin(), ms.end());
       }
+
     } // if ratio > top_best
             
   } // for pi msg.data.points
@@ -167,6 +159,40 @@ void ReachabilityDisplay::processMessage(const reachability_msgs::msg::ReachGrap
   // Visualize
   point_cloud_common_->addMessage(cloud);    
   marker_common_->addMessage(marker);
+}
+
+/**
+ * @function getColorGradient
+ */
+void ReachabilityDisplay::getColorGradient(const float& _ratio, float &_color)
+{ 
+  uint8_t r, g, b;
+
+  float green, red;
+  red = _ratio > 0.5? 1.0 - 2.0*(_ratio - 0.5) : 1.0;
+  green = _ratio > 0.5? 1.0 : 2.0*_ratio;
+
+    r = (uint8_t)std::floor((int) (red*255.0)); 
+    g = (uint8_t)std::floor((int) (green*255.0)); 
+    b = 0x00;
+    uint32_t col = (r << 16) + (g << 8) + b;
+    _color = *reinterpret_cast<float*>( &col );
+}
+
+/**
+ * @function isAbovePlane
+ */
+bool ReachabilityDisplay::isAbovePlane(const geometry_msgs::msg::Point &_p, const bool &_full) {
+
+    // If not above plane, don't show point
+    double dist = nx_*_p.x + ny_*_p.y + nz_*_p.z - plane_dist_;
+    
+    double thresh = 0.05;
+    
+    if(_full)
+      return (dist >= 0.0);
+    else
+      return dist >= 0.0 && thresh >= dist;
 }
 
 /**

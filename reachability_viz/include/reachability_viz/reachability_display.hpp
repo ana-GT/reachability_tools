@@ -36,6 +36,8 @@ protected:
   void getMinMaxSamples(const reachability_msgs::msg::ReachGraphStamped::ConstSharedPtr &_msg, int &_min_samples, int &_max_samples);
   std::vector<visualization_msgs::msg::Marker> generateArrowVizSample(const reachability_msgs::msg::ReachData &_pi, int &_start_id);  
   void fillDefaultArrowMarker(visualization_msgs::msg::Marker &_mi, const double &_r, const double &_g, const double &_b, const double &_a);  
+  bool isAbovePlane(const geometry_msgs::msg::Point &_p, const bool &_full = true);
+  void getColorGradient(const float& _ratio, float &_color);
   
   rviz_common::properties::Property* reach_properties_;
   
@@ -46,7 +48,8 @@ protected:
   rviz_common::properties::FloatProperty* plane_distance_property_;
   rviz_common::properties::IntProperty* top_best_metric_property_;
   rviz_common::properties::Property* orientation_property_;
-      
+  rviz_common::properties::BoolProperty* layer_property_;
+        
   // Display of directions
   std::unique_ptr<rviz_default_plugins::displays::MarkerCommon> marker_common_;
 
@@ -54,6 +57,7 @@ protected:
   double nx_, ny_, nz_, plane_dist_;
   double top_best_;
   bool show_orientation_;
+  bool show_just_one_layer_;
   
 private Q_SLOTS:
   void updateSlice();

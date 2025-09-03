@@ -8,6 +8,8 @@
 #include <vector>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <reachability_msgs/msg/chain_info.hpp>
+#include <reachability_msgs/msg/reach_graph.hpp>
+
 #include <trac_ik/trac_ik.hpp>
 
 KDL::Frame makeKDLFrame(const double &_x, const double &_y, const double &_z, 
@@ -23,3 +25,12 @@ sensor_msgs::msg::JointState jntArrayToMsg(const KDL::JntArray &_q,
                                            const reachability_msgs::msg::ChainInfo &_ci);
 
 TRAC_IK::SolveType stringToType(const std::string &_str);                                           
+
+/////////////////////////////
+
+namespace reach_utils {
+
+bool getMinMaxSamples(const reachability_msgs::msg::ReachGraph &_rg,
+                      int &_min_samples, int &_max_samples);
+
+}

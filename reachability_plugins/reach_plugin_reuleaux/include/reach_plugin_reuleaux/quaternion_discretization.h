@@ -134,7 +134,8 @@ class TesseractDiscretization
   void addIfNotThere(std::vector<Eigen::Vector4d> &_points, 
                        const Cube &_ci);
 
-
+  void addIfOtherZAxis(std::vector<Eigen::Quaterniond> &_qs, 
+                       const Eigen::Quaterniond &_q);
 };
 
 /**

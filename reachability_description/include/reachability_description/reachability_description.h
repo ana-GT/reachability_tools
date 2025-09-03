@@ -64,7 +64,7 @@ class ReachabilityDescription
     bool isSelfColliding(const sensor_msgs::msg::JointState &_js);
  
     bool addKinematicSolvers(const std::string &_chain_group);
-    KDL::JntArray  getClosestJointConfig(const double &_xi, const double &_yi, const double &_zi, 
+    KDL::JntArray getClosestJointConfig(const double &_xi, const double &_yi, const double &_zi, 
                                      const std::map<std::string, KDL::JntArray> &_joint_configs, 
                                      const std::map<std::string, KDL::Frame> &_fk_poses);
 

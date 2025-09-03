@@ -97,9 +97,9 @@ void ReachGraphReuleaux::createTesseractSamples(const double &_x,
 
   int n = 1;
   // 1. Create the quaternion samples
-  if(N == 40)
+  if(N == 14)
     n = 1;
-  else if(N == 272)
+  else if(N == 102)
     n = 2;
   else
     printf("Num samples is not either 40 or 272!!!! \n");
@@ -108,7 +108,7 @@ void ReachGraphReuleaux::createTesseractSamples(const double &_x,
   TesseractDiscretization td;
   qs = td.generateQuaternions(n);
   
-  for(int k = 0; k < N; ++k)
+  for(int k = 0; k < qs.size(); ++k)
   {
    Eigen::Isometry3d p; p.setIdentity();
    p.translation() = Eigen::Vector3d(_x, _y, _z);
@@ -178,7 +178,7 @@ bool ReachGraphReuleaux::calculateMetric(reachability_msgs::msg::ReachData &_rda
 { 
   int N = params_.num_voxel_samples;
   reachability_msgs::msg::Param metric;
-  metric.name = "reachable_voxels";
+  metric.name = std::string("reachable_voxels"); if(N == 0) { RCLCPP_INFO(logger, "N is zero!!!!"); }
   metric.value = (double) _rdata.samples.size() / (double) N;
   _rdata.metrics.push_back(metric);
   

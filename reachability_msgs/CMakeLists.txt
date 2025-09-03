@@ -28,9 +28,11 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 "msg/ReachGraph.msg"
 "msg/ReachGraphStamped.msg"
 "msg/Param.msg"
+"msg/MobilePose.msg"
 "srv/GetHandToUser.srv"
 "srv/GenerateReachPoses.srv"
 "srv/GetIKPose.srv"
+"srv/GetMobilePoses.srv"
 DEPENDENCIES geometry_msgs std_msgs sensor_msgs vision_msgs
 )
 

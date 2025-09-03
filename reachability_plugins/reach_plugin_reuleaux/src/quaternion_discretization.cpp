@@ -17,8 +17,34 @@ std::vector<Eigen::Quaterniond> TesseractDiscretization::generateQuaternions(con
     std::vector<Eigen::Quaterniond> qs;
     for(auto pi : points)
         qs.push_back( Eigen::Quaterniond(pi(3), pi(0), pi(1), pi(2)) );
-    
-    return qs;
+
+    // Extra - Add quaternions where Z axes are different
+    std::vector<Eigen::Quaterniond> qsn;
+    for(auto qi : qs)
+      addIfOtherZAxis(qsn, qi);
+
+    return qsn;
+}
+
+void TesseractDiscretization::addIfOtherZAxis(std::vector<Eigen::Quaterniond> &_qs, const Eigen::Quaterniond &_q)
+{
+    double eps = 0.001;
+
+    // Get Z axis of _q
+    Eigen::Matrix3d rot(_q);
+    Eigen::Vector3d z = rot.col(2);
+
+    for(const auto qe : _qs)
+    {
+        Eigen::Matrix3d re(qe);
+        Eigen::Vector3d ze = re.col(2);   
+        if((z - ze).norm() < eps)
+            return;
+    }
+
+    // Add if Z axis not equal
+    _qs.push_back(_q);
+
 }
 
 /**
@@ -93,6 +119,9 @@ void TesseractDiscretization::getPointsFromCubes(const std::vector<Cube> &_Cn,
 
 }
 
+/**
+ * @brief Add point if (1) Not already in vector and (2) q & -q are not there (only q) 
+ */
 void TesseractDiscretization::addIfNotThere(std::vector<Eigen::Vector4d> &_points, 
                        const Cube &_ci)
 {
@@ -122,8 +151,7 @@ void TesseractDiscretization::addIfNotThere(std::vector<Eigen::Vector4d> &_point
         _points.push_back(ci);
 
 
-}                    
-                
+}  
 
 
 ////////////////////////////////////////////////////////

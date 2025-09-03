@@ -177,17 +177,17 @@ bool ReachabilityDescription::generateDescription(const std::string &_chain_grou
                   chain_info_[_chain_group], 
                   params_[_chain_group].ik_max_time, params_[_chain_group].ik_epsilon, stringToType(params_[_chain_group].ik_type), 
                   joint_configs, fk_poses);
- std::thread to4_( &ReachabilityDescription::reach_calc, this, 
+ /*std::thread to4_( &ReachabilityDescription::reach_calc, this, 
                   x_mid, y_mid, z_min, 
                   x_max, y_max, z_max, 
                   chain_info_[_chain_group], 
                   params_[_chain_group].ik_max_time, params_[_chain_group].ik_epsilon, stringToType(params_[_chain_group].ik_type), 
-                  joint_configs, fk_poses);
+                  joint_configs, fk_poses);*/
 
  to1_.join();
  to2_.join();
  to3_.join();
- to4_.join();
+ //to4_.join();
 
  return true;
 }
@@ -492,6 +492,7 @@ for(int i = 0; i < reach_graph_i->getNumPoints(); i++)
   reach_graph_i->vertexToWorld(xli, yli, zli, x, y, z);
 
   reach_graph_[_ci.group]->worldToVertex(x, y, z, xi, yi, zi);
+
   reach_graph_[_ci.group]->setState(xi, yi, zi, data);
 }
 reach_fill_mutex_.unlock();

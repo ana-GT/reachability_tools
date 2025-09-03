@@ -1,6 +1,34 @@
 
 #include <reachability_description/reach_utilities.h>
 
+namespace reach_utils {
+
+bool getMinMaxSamples(const reachability_msgs::msg::ReachGraph &_rg,
+                      int &_min_samples, int &_max_samples)
+{
+  if(_rg.points.empty())
+    return false;
+
+  _min_samples = 1000;
+  _max_samples = 0;
+
+  for(auto pi : _rg.points)
+  {
+     auto num = pi.samples.size();
+     if (num < _min_samples)
+       _min_samples = num;
+     if (num > _max_samples)
+       _max_samples = num;
+  }
+
+  return true;
+}
+
+
+}
+
+
+
 /**
  * @function stringToTYpe 
  */

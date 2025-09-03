@@ -1,0 +1,2 @@
+sensor_msgs/JointState arm_config
+geometry_msgs/PoseStamped base_pose

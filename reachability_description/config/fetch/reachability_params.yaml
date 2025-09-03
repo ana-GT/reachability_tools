@@ -16,8 +16,8 @@ arm_with_torso:
                      "pose_left_0_high", 
                      "pose_left_1_high"]
 
-  voxel_resolution: 0.05
-  voxel_num_samples: 40 # 40, 272
+  voxel_resolution: 0.20
+  voxel_num_samples: 102 # 40/14, 272/102
 
 
   x_min: -0.65

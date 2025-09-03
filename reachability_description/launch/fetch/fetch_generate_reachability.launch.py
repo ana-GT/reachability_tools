@@ -64,7 +64,8 @@ def generate_launch_description():
             {"plugin_name": "reachability_description::ReachGraphReuleaux"},
             {"chain_group_name": "arm_with_torso"}, # arm
             {"robot_name": "fetch"},
-        ]
+        ],
+        #prefix=["xterm -e gdb -ex run --args"]
     )
 
 
