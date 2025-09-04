@@ -182,7 +182,6 @@ bool ReachabilityDescription::generateDescription(const std::string &_chain_grou
                   params_[_chain_group].ik_max_time, params_[_chain_group].ik_epsilon, stringToType(params_[_chain_group].ik_type), 
                   joint_configs, fk_poses);
 
- RCLCPP_INFO(logger, "Getting values..."); 
  auto r1 = ret1.get();
  auto r2 = ret2.get();
  auto r3 = ret3.get();
@@ -216,9 +215,6 @@ bool ReachabilityDescription::copyPartialGraph(const std::shared_ptr<ReachGraph>
 
     return false;
   }  
-
-  if(_debug)
-    RCLCPP_INFO(logger, "RG Num points: %ld", _rg->getNumPoints());
   
   for(int i = 0; i < _rg->getNumPoints(); i++)
   {
@@ -624,6 +620,10 @@ reachability_msgs::msg::ReachData ReachabilityDescription::calculateReachability
 
   // Create samples
   reachability_msgs::msg::ReachData rdata;
+  rdata.pose.position.x = _x;
+  rdata.pose.position.y = _y;
+  rdata.pose.position.z = _z;
+  rdata.pose.orientation.w = 1.0;
 
   std::vector<Eigen::Isometry3d> frames; 
   _reach_graph->generateSamples(_x, _y, _z, frames);

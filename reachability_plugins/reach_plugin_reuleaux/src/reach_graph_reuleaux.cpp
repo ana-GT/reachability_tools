@@ -29,8 +29,8 @@ ReachGraphReuleaux::~ReachGraphReuleaux()
 void ReachGraphReuleaux::generateSamples(const double &_x, const double &_y, const double &_z, 
                                          std::vector<Eigen::Isometry3d> &_frames)
 {
-  this->createTesseractSamples(_x, _y, _z, _frames);
-  //this->createSphereSamplesVoxel(_x, _y, _z, _frames);
+  //this->createTesseractSamples(_x, _y, _z, _frames);
+  this->createSphereSamplesVoxel(_x, _y, _z, _frames);
 }
 
 /**
@@ -66,6 +66,7 @@ void ReachGraphReuleaux::createSphereSamplesVoxel(const double &_x,
 
    // TCP's Z vector towards center (-dx, -dy, -dz)
    Eigen::Vector3d z_tcp; z_tcp << -dx, -dy, -dz;
+   z_tcp.normalize();
    // Regular Z
    Eigen::Vector3d z_unit; z_unit << 0, 0, 1;
    Eigen::Quaterniond qz;

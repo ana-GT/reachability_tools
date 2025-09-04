@@ -120,10 +120,10 @@ void ReachabilityDisplay::processMessage(const reachability_msgs::msg::ReachGrap
     if(pi.samples.empty())
       continue;
           
-    if(!isAbovePlane(pi.samples[0].pose.position, !show_just_one_layer_))
+    if(!isAbovePlane(pi.pose.position, !show_just_one_layer_))
       continue;      
 
-    auto po = pi.samples[0].pose.position;
+    auto po = pi.pose.position;
     geometry_msgs::msg::Point32 p;
     p.x = po.x; p.y = po.y; p.z = po.z;
  
