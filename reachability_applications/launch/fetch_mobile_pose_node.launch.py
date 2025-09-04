@@ -64,8 +64,7 @@ def generate_launch_description():
     srdf_file = os.path.join(rc_dir, 'config/fetch/fetch.srdf')
     srdf_config = open(srdf_file).read()
 
-#    reachability_yaml = load_yaml("reachability_description", "config/fetch/reachability_params.yaml")
-#    reachability_params = {"reachability_params": reachability_yaml}
+    reachability_yaml = load_yaml("reachability_description", "config/fetch/reachability_params.yaml")
     
     reach_ik = Node(
         package='reachability_applications',
@@ -73,7 +72,7 @@ def generate_launch_description():
         output='screen',
         parameters=[
             # Reachability Description parameters
-#            reachability_params,
+            {"reachability_params": reachability_yaml},           
             {"robot_description": urdf_config},
             {"robot_description_semantic" : srdf_config},
             {"plugin_name": "reachability_description::ReachGraphReuleaux"},

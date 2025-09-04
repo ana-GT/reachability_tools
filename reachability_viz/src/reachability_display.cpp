@@ -136,11 +136,6 @@ void ReachabilityDisplay::processMessage(const reachability_msgs::msg::ReachGrap
     if(ratio > (1.0 - top_best_)) {
       
       cloud->points.push_back(p);
-      if(top_best_ < 0.20)
-      {
-
-        RCLCPP_INFO(rclcpp::get_logger("reach_display"), "Added p %f %f %f with samples: %ld", p.x, p.y, p.z, pi.samples.size());
-      }
       cloud->channels[0].values.push_back(color);
       if(show_orientation_)
       {

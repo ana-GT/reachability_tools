@@ -8,15 +8,7 @@
 
 using namespace reachability_description;
 
-double modulo(const double &_val, const double &_factor)
-{
-  double new_val = _val;
-
-  while(new_val > _factor)
-    new_val = new_val - _factor;
-  
-  return new_val; 
-}
+const auto logger = rclcpp::get_logger("reach_graph");
 
 /**
  * @function ReachGraph
@@ -80,11 +72,11 @@ bool ReachGraph::initialize(const reachability_msgs::msg::ReachGraph &_msg)
 
   if(_msg.points.size() != num_points_)
   {
-    RCLCPP_ERROR(rclcpp::get_logger("ReachGraph"), "Loaded reachability does not match: %ld vs %d ", _msg.points.size(), num_points_); 
+    RCLCPP_ERROR(logger, "Loaded reachability does not match: %ld vs %d ", _msg.points.size(), num_points_); 
     return false;
   } 
   
-  RCLCPP_INFO(rclcpp::get_logger("ReachGraph"), "Loading %ld points ", _msg.points.size());   
+  RCLCPP_INFO(logger, "Loading %ld points ", _msg.points.size());   
 
   for(int i = 0; i < num_points_; ++i)
     points_[i] = _msg.points[i];
@@ -99,9 +91,9 @@ bool ReachGraph::initialize(const reachability_msgs::msg::ReachGraph &_msg)
  */
 void ReachGraph::calculateDims()
 {
-  num_x_ = round( ( params_.max_x - params_.min_x ) / params_.resolution );
-  num_y_ = round( ( params_.max_y - params_.min_y ) / params_.resolution );
-  num_z_ = round( ( params_.max_z - params_.min_z ) / params_.resolution );
+  num_x_ = static_cast<int>(std::ceil( ( params_.max_x - params_.min_x ) / params_.resolution ));
+  num_y_ = static_cast<int>(std::ceil( ( params_.max_y - params_.min_y ) / params_.resolution ));
+  num_z_ = static_cast<int>(std::ceil( ( params_.max_z - params_.min_z ) / params_.resolution ));
 
   step_yz_ = num_y_*num_z_;
   step_z_ = num_z_;
@@ -241,12 +233,13 @@ bool ReachGraph::setPlaneEquationCoefficients(const std::string &_plane,
   { _nx = 0; _ny = 0; _nz = 0; _d = 0; }
   else
   {
-     RCLCPP_ERROR(rclcpp::get_logger("ReachGraph"), " plane parameter is not set up with a valid string!");
+     RCLCPP_ERROR(logger, " plane parameter is not set up with a valid string!");
      return false;
   }
   
   return true;
 }
+
 
 /**
  * @function getPCD
@@ -254,7 +247,7 @@ bool ReachGraph::setPlaneEquationCoefficients(const std::string &_plane,
 sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( const std::string &_plane,
                                                   const double &_plane_dist )
 {
-  RCLCPP_WARN(rclcpp::get_logger("ReachGraph"), "Plane type: %s dist: %f ", _plane.c_str(), _plane_dist);
+  RCLCPP_WARN(logger, "Plane type: %s dist: %f ", _plane.c_str(), _plane_dist);
   reachability_msgs::msg::ReachData *v;
   v = &points_[0];
   
@@ -286,7 +279,7 @@ sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( const std::string &_plane,
     v++;
   } // for i
 
-  RCLCPP_WARN(rclcpp::get_logger("ReachGraph"), "Number of solutions range from %d to %d ", min_sols, max_sols);
+  RCLCPP_WARN(logger, "Number of solutions range from %d to %d ", min_sols, max_sols);
 
   sensor_msgs::msg::PointCloud2 cloud;
 
@@ -296,16 +289,13 @@ sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( const std::string &_plane,
   cloud.is_dense = false;
  
   sensor_msgs::PointCloud2Modifier modifier(cloud);
-  modifier.setPointCloud2FieldsByString(2, "xyz", "rgb");
+  modifier.setPointCloud2FieldsByString(1, "xyz");
   modifier.resize(count);
 
   // iterators
   sensor_msgs::PointCloud2Iterator<float> out_x(cloud, "x");
   sensor_msgs::PointCloud2Iterator<float> out_y(cloud, "y");
   sensor_msgs::PointCloud2Iterator<float> out_z(cloud, "z");
-  sensor_msgs::PointCloud2Iterator<uint8_t> out_r(cloud, "r");
-  sensor_msgs::PointCloud2Iterator<uint8_t> out_g(cloud, "g");
-  sensor_msgs::PointCloud2Iterator<uint8_t> out_b(cloud, "b");
 
   // Enter vertices in the graph
   v = &points_[0];
@@ -322,93 +312,9 @@ sensor_msgs::msg::PointCloud2 ReachGraph::getPCD( const std::string &_plane,
         *out_x = x;
         *out_y = y;
         *out_z = z;
-        //*out_r = (int)( 255.0*( modulo( 2*(1-ratio), 1.0) )); 
-        //*out_g = (int)( 255*( modulo( 2*ratio, 1.0) )); 
-        double red = ratio > 0.5? 1.0 - 2.0*(ratio - 0.5) : 1.0;
-        double green = ratio > 0.5? 1.0 : 2.0*ratio;
-        *out_r = (int)(red*255);
-        *out_g = (int)(green*255);
-        *out_b = 0; 
-
         ++out_x; ++out_y; ++out_z;
-        ++out_r; ++out_g; ++out_b;
       } // if nx, ny, nz
     }
-    v++;
-  }
- 
-  return cloud;
-}
-
-
-/**
- * @function getPCD
- */
-sensor_msgs::msg::PointCloud2 ReachGraph::getPCDHigherThan(const double &_ratio)
-{
-  RCLCPP_WARN(rclcpp::get_logger("ReachGraph"), "PCD higher than");
-  reachability_msgs::msg::ReachData *v;
-  v = &points_[0];
-  
-  int max_sols = 0;
-  int min_sols = 100000;
-
-  int xi, yi, zi;
-  double x, y, z;
-
-  // Get how many reachability samples have a metric value higher than a ratio of the maximum value
-  int count = 0;
-  int ratio_above = floor(_ratio *  params_.num_voxel_samples);
-  for( int i = 0; i < num_points_; ++i ) {
-    if( v->state == reachability_msgs::msg::ReachData::FILLED ) {
-
-      if(v->samples.size() >= ratio_above)
-        count++;
-    }
-    v++;
-  }
-
-  sensor_msgs::msg::PointCloud2 cloud;
-
-  cloud.header.frame_id = chain_info_.root_link;
-  cloud.width = count;
-  cloud.height = 1;
-  cloud.is_dense = false;
- 
-  sensor_msgs::PointCloud2Modifier modifier(cloud);
-  modifier.setPointCloud2FieldsByString(2, "xyz", "rgb");
-  modifier.resize(count);
-
-  // iterators
-  sensor_msgs::PointCloud2Iterator<float> out_x(cloud, "x");
-  sensor_msgs::PointCloud2Iterator<float> out_y(cloud, "y");
-  sensor_msgs::PointCloud2Iterator<float> out_z(cloud, "z");
-  sensor_msgs::PointCloud2Iterator<uint8_t> out_r(cloud, "r");
-  sensor_msgs::PointCloud2Iterator<uint8_t> out_g(cloud, "g");
-  sensor_msgs::PointCloud2Iterator<uint8_t> out_b(cloud, "b");
-
-  // Enter vertices in the graph
-  v = &points_[0];
-
-  for( int i = 0; i < num_points_; ++i ) {
-    if( v->state == reachability_msgs::msg::ReachData::FILLED ) {
-
-      indexToVertex( i, xi, yi, zi );
-      vertexToWorld( xi, yi, zi, x, y, z );
-
-      if(v->samples.size() >= ratio_above)
-      {
-        *out_x = x;
-        *out_y = y;
-        *out_z = z;
-        *out_r = 20;
-        *out_g = 255;
-        *out_b = 20; 
-
-        ++out_x; ++out_y; ++out_z;
-        ++out_r; ++out_g; ++out_b;
-      } // 
-    } // if
     v++;
   }
  

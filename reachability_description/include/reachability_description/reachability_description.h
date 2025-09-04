@@ -89,7 +89,7 @@ class ReachabilityDescription
     bool readFromDisk(const std::string &_filename,
                       reachability_msgs::msg::ReachData &_msg);
 
-    void reach_calc( const double &_min_x, const double &_min_y, const double &_min_z,
+    std::shared_ptr<ReachGraph> reach_calc( const double &_min_x, const double &_min_y, const double &_min_z,
                      const double &_max_x, const double &_max_y, const double &_max_z,
                      const reachability_msgs::msg::ChainInfo &_ci,
                      const double &_ik_max_time, const double &_ik_epsilon, 
@@ -111,6 +111,7 @@ class ReachabilityDescription
                                           const std::shared_ptr<robot_unit::RobotCollisionObject> &_rco,
                                           const KDL::JntArray &_q_init);
 
+    bool copyPartialGraph(const std::shared_ptr<ReachGraph> &_rg, const std::string &_chain_group, const bool &_debug = false);
 
     std::string generateDefaultReachGroupName(const std::string &_chain_group);
 

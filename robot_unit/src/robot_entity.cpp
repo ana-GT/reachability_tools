@@ -5,6 +5,8 @@
  */
 #include <robot_unit/robot_entity.h>
 
+const auto logger = rclcpp::get_logger("robot_entity");
+
 /**
  * @brief Constructor 
  */
@@ -42,7 +44,7 @@ bool RobotEntity::init(const std::string &_urdf_string,
   // Init KDL Tree
   if(!kdl_parser::treeFromUrdfModel(*urdf_, tree_))
   {
-    RCLCPP_ERROR(rclcpp::get_logger("debug"), "KDL TREE START FROM URDF MODEL - RE");
+    RCLCPP_ERROR(logger, "KDL TREE START FROM URDF MODEL - RE");
     return false;
   }
   // Init FK
@@ -319,14 +321,14 @@ std::vector<std::pair<std::string, std::string>>  RobotEntity::getSrdfDisabledCo
 
 bool RobotEntity::getJointLimits(const std::vector<std::string> &_joint_names,
                                  std::vector<std::pair<double, double> > &_joint_limits)
-{RCLCPP_INFO(rclcpp::get_logger("testa"), "getting joint limits");
+{RCLCPP_INFO(logger, "getting joint limits");
   for(auto ji : _joint_names)
   {
-    RCLCPP_INFO(rclcpp::get_logger("testa"), "getting joint limits for %s", ji.c_str());
+    RCLCPP_INFO(logger, "getting joint limits for %s", ji.c_str());
     if(joint_lower_lim_.find(ji) == joint_lower_lim_.end() ||
        joint_upper_lim_.find(ji) == joint_upper_lim_.end() )
     {
-    RCLCPP_INFO(rclcpp::get_logger("testa"), "FAILED!! getting joint limits for %s", ji.c_str());
+    RCLCPP_INFO(logger, "FAILED!! getting joint limits for %s", ji.c_str());
       return false;
     }
     _joint_limits.push_back(std::pair<double, double>(joint_lower_lim_[ji], joint_upper_lim_[ji]));

@@ -120,7 +120,7 @@ void ReachGraphReuleaux::createTesseractSamples(const double &_x,
 }
 
 /**
- * @function getPCD
+ * @function debugSamples
  */
 sensor_msgs::msg::PointCloud2 ReachGraphReuleaux::debugSamples(int _xi, int _yi, int _zi)
 {

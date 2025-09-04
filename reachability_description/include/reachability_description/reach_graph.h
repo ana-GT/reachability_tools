@@ -82,20 +82,18 @@ class ReachGraph {
     inline double getMaxY() const { return params_.max_y; }
     inline double getMaxZ() const { return params_.max_z; }
 
-    sensor_msgs::msg::PointCloud2 getPCD( const std::string &_plane,
-                                          const double &_plane_dist );
-
-    sensor_msgs::msg::PointCloud2 getPCDHigherThan(const double &_ratio);
-
     static bool setPlaneEquationCoefficients(const std::string &_plane, 
                                       const double &_plane_dist,
                                       double &_nx, double &_ny, double &_nz, double &_d);
 
+    sensor_msgs::msg::PointCloud2 getPCD( const std::string &_plane,
+                                          const double &_plane_dist );
+
+  inline int ref( int _xi, int _yi, int _zi ) const;
 
  protected:
 
   void calculateDims();
-  inline int ref( int _xi, int _yi, int _zi ) const;
 
   reachability_msgs::msg::ChainInfo chain_info_;
   reachability_msgs::msg::ReachParams params_;
