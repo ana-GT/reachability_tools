@@ -5,6 +5,7 @@
 
 #include <tf2_eigen_kdl/tf2_eigen_kdl.hpp>
 #include <kdl/jntarray.hpp>
+#include <kdl/chainjnttojacsolver.hpp>
 #include <vector>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <reachability_msgs/msg/chain_info.hpp>
@@ -32,5 +33,9 @@ namespace reach_utils {
 
 bool getMinMaxSamples(const reachability_msgs::msg::ReachGraph &_rg,
                       int &_min_samples, int &_max_samples);
+
+
+double manipValue1(const KDL::JntArray& _q, const std::shared_ptr<KDL::ChainJntToJacSolver> &_jac_solver);
+double manipValue2(const KDL::JntArray& _q, const std::shared_ptr<KDL::ChainJntToJacSolver> &_jac_solver);
 
 }

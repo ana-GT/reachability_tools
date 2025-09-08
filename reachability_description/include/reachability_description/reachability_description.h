@@ -3,6 +3,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <trac_ik/trac_ik.hpp>
+#include <kdl/chainjnttojacsolver.hpp>
 
 #include <urdf/model.h>
 #include <srdfdom/model.h>
@@ -131,6 +132,8 @@ class ReachabilityDescription
     std::map<std::string, std::shared_ptr<ReachGraph> > reach_graph_;
     std::map<std::string, std::shared_ptr<TRAC_IK::TRAC_IK> > ik_solver_;
     std::map<std::string, std::shared_ptr<KDL::ChainFkSolverPos_recursive> > fk_solver_;
+    std::map<std::string, std::shared_ptr<KDL::ChainJntToJacSolver> > jac_solver_;
+    std::map<std::string, KDL::Chain> chain_;
     std::map<std::string, reachability_msgs::msg::ChainInfo> chain_info_;
     std::map<std::string, std::vector<std::pair<double, double>> > joint_limits_;
     std::map<std::string, reachability_description_params::Params> params_;

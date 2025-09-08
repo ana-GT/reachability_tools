@@ -18,7 +18,7 @@ class ReachGraphReuleaux : public reachability_description::ReachGraph {
   ~ReachGraphReuleaux();
 
   void generateSamples(const double &_xi, const double &_yi, const double &_zi, std::vector<Eigen::Isometry3d> &_frames) override;
-  bool calculateMetric(reachability_msgs::msg::ReachData &_rdata) override;
+  bool calculateMetric(reachability_msgs::msg::ReachData &_rdata, const std::shared_ptr<KDL::ChainJntToJacSolver> &_jac_solver) override;
 
   sensor_msgs::msg::PointCloud2 debugSamples(int _xi, int _yi, int _zi);
 

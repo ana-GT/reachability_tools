@@ -33,6 +33,8 @@ include_directories(
 add_executable(simple_mobile_pose_node src/simple_mobile_pose_node.cpp)
 ament_target_dependencies(simple_mobile_pose_node ${DEPS})
 
+add_executable(simple_get_reach_data_node src/simple_get_reach_data_node.cpp)
+ament_target_dependencies(simple_get_reach_data_node ${DEPS})
 
 install(
   DIRECTORY include/
@@ -41,6 +43,7 @@ install(
 
 install(TARGETS 
   simple_mobile_pose_node
+  simple_get_reach_data_node
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib

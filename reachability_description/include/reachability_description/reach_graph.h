@@ -9,6 +9,7 @@
 #include <iostream>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
+#include <kdl/chainjnttojacsolver.hpp>
 #include <robot_unit/robot_entity.h>
 #include <Eigen/Geometry>
 
@@ -42,7 +43,7 @@ class ReachGraph {
     virtual void generateSamples(const double &_x, const double &_y, const double &_z, 
                                  std::vector<Eigen::Isometry3d> &_frames) {};
 
-    virtual bool calculateMetric(reachability_msgs::msg::ReachData &_rdata) { return false; };
+    virtual bool calculateMetric(reachability_msgs::msg::ReachData &_rdata, const std::shared_ptr<KDL::ChainJntToJacSolver> &_jac_solver) { return false; };
 
     bool toMsg(reachability_msgs::msg::ReachGraph &_graph);
 

@@ -33,6 +33,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 "srv/GenerateReachPoses.srv"
 "srv/GetIKPose.srv"
 "srv/GetMobilePoses.srv"
+"srv/GetReachData.srv"
 DEPENDENCIES geometry_msgs std_msgs sensor_msgs vision_msgs
 )
 

@@ -5,6 +5,8 @@
 #include <reach_plugin_reuleaux/quaternion_discretization.h>
 #include <reachability_msgs/msg/param.hpp>
 
+#include <reachability_description/reach_utilities.h>
+
 using namespace reachability_description;
 
 double modulo(const double &_val, const double &_factor)
@@ -175,16 +177,36 @@ sensor_msgs::msg::PointCloud2 ReachGraphReuleaux::debugSamples(int _xi, int _yi,
 /**
  * @function calculateMetric
  */
-bool ReachGraphReuleaux::calculateMetric(reachability_msgs::msg::ReachData &_rdata)
+bool ReachGraphReuleaux::calculateMetric(reachability_msgs::msg::ReachData &_rdata, const std::shared_ptr<KDL::ChainJntToJacSolver> &_jac_solver)
 { 
   int N = params_.num_voxel_samples;
   reachability_msgs::msg::Param metric;
   metric.name = std::string("reachable_voxels"); if(N == 0) { RCLCPP_INFO(logger, "N is zero!!!!"); }
   metric.value = (double) _rdata.samples.size() / (double) N;
   _rdata.metrics.push_back(metric);
+
+  for(auto &si : _rdata.samples)
+  {
+    KDL::JntArray q;
+    q.data.resize(si.best_config.size());
+    for(int i = 0; i < si.best_config.size(); ++i)
+      q(i) = si.best_config[i];
+      
+    reachability_msgs::msg::Param m1;
+    m1.name = "manip_1";
+    m1.value = reach_utils::manipValue1(q, _jac_solver);
+    si.metrics.push_back(m1);
+    
+    reachability_msgs::msg::Param m2;
+    m2.name = "manip_2";
+    m2.value = reach_utils::manipValue2(q, _jac_solver);
+    si.metrics.push_back(m2);
+       
+  }
   
   return _rdata.samples.size() > 0;
 }
+
 
 #include <pluginlib/class_list_macros.hpp>
 

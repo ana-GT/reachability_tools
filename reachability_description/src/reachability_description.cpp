@@ -232,14 +232,15 @@ bool ReachabilityDescription::copyPartialGraph(const std::shared_ptr<ReachGraph>
      int index = reach_graph_[_chain_group]->ref(xi, yi, zi);
      if(index >= reach_graph_[_chain_group]->getNumPoints())
      {
-       RCLCPP_ERROR(logger, "Index: %d/%d -- i: %d -> xli, yli, zli: %d %d %d ->  xyz: %f %f %f.  xyz_i: %d %d %d / get Numxyz: %d %d %d !!!!!", index, reach_graph_[_chain_group]->getNumPoints(), 
-       i, xli, yli, zli, x, y, z, 
-       xi, yi, zi, reach_graph_[_chain_group]->getNumX(), reach_graph_[_chain_group]->getNumY(), reach_graph_[_chain_group]->getNumZ() );
+       RCLCPP_ERROR(logger, "Index out of bounds: %d/%d", index, reach_graph_[_chain_group]->getNumPoints() );
        continue;
      }
-       
+
+    // Add metric
+    reach_graph_[_chain_group]->calculateMetric(data, jac_solver_[_chain_group] );       
+
      reach_graph_[_chain_group]->setState(xi, yi, zi, data);
-}
+  }
   return true;
 }
 
@@ -663,8 +664,6 @@ reachability_msgs::msg::ReachData ReachabilityDescription::calculateReachability
   // Set status
   rdata.state = rdata.samples.size() > 0 ? reachability_msgs::msg::ReachData::FILLED : reachability_msgs::msg::ReachData::NO_FILLED;
   
-  // Add metric
-  _reach_graph->calculateMetric(rdata);
   return rdata;
 }
 
@@ -705,10 +704,11 @@ bool ReachabilityDescription::addKinematicSolvers(const std::string &_chain_grou
   ik_solver_[_chain_group] = ik_solver;
 
   // Create FIK solver
-  KDL::Chain chain;
-  getIKSolver(_chain_group)->getKDLChain(chain);
-  fk_solver_[_chain_group].reset(new KDL::ChainFkSolverPos_recursive(chain));
-   
+  getIKSolver(_chain_group)->getKDLChain(chain_[_chain_group]);
+  fk_solver_[_chain_group].reset(new KDL::ChainFkSolverPos_recursive(chain_[_chain_group]));
+ 
+  // Create Jacobian solver
+  jac_solver_[_chain_group].reset(new KDL::ChainJntToJacSolver(chain_[_chain_group]));   
 
   // Joint limits
   re_->getJointLimits(chain_info.joint_names, 

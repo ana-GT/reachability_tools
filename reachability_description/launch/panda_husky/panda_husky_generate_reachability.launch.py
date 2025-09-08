@@ -1,8 +1,8 @@
 import os
 import yaml
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
-from launch.substitutions import Command, FindExecutable, LaunchConfiguration
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
 from launch.conditions import IfCondition, UnlessCondition
 from launch_ros.actions import Node
 from launch.actions import ExecuteProcess
@@ -24,6 +24,20 @@ def load_yaml(package_name, file_path):
 ###########################################
 def generate_launch_description():
 
+    launch_args = [
+        DeclareLaunchArgument(name="rviz", default_value="True"),
+    ]
+
+    rc_dir = get_package_share_directory("robots_config")
+
+    # Launch robot
+    robot_launch = IncludeLaunchDescription(
+            PathJoinSubstitution([rc_dir, 'launch/panda_husky/panda_husky_config.launch.py']),
+            launch_arguments={
+              'rviz': LaunchConfiguration('rviz')
+            }.items(),
+    ) 
+
     robot_description_config = xacro.process_file(
         os.path.join(
             get_package_share_directory("robots_config"),
@@ -40,9 +54,7 @@ def generate_launch_description():
     srdf_config = Command(
         [FindExecutable(name='xacro'), ' ', srdf_file, ' hand:=true']
     )
-    robot_description_semantic = {
-        'robot_description_semantic': srdf_config
-    }
+    robot_description_semantic = {'robot_description_semantic': srdf_config}
 
     # Reach parameters
     reachability_yaml = load_yaml(
@@ -50,33 +62,6 @@ def generate_launch_description():
     )
     reachability_params = {"reachability_params": reachability_yaml}
 
-
-    rviz_base = os.path.join(get_package_share_directory("robots_config"), "rviz")
-    rviz_full_config = os.path.join(rviz_base, "panda_husky.rviz")
-    rviz_node = Node(
-        package="rviz2",
-        executable="rviz2",
-        name="rviz2",
-        output="log",
-        arguments=["-d", rviz_full_config],
-        parameters=[]
-    )
-
-    # Publish TF
-    robot_state_publisher = Node(
-        package="robot_state_publisher",
-        executable="robot_state_publisher",
-        name="robot_state_publisher",
-        output="both",
-        parameters=[robot_description],
-    )
-    
-    # Joint State publisher
-    joint_publisher = Node(
-        package='joint_state_publisher',
-        executable='joint_state_publisher',
-        name='joint_state_publisher',
-        output='screen')
 
     # Panda_husky
     reach_gen = Node(
@@ -91,15 +76,9 @@ def generate_launch_description():
             {"robot_name": "panda_husky"},
             {"plugin_name": "reachability_description::ReachGraphReuleaux"} 
         ]
-    )    
-
+    )
 
     return LaunchDescription(
-        [
-            rviz_node,
-            robot_state_publisher,
-            joint_publisher,
-            reach_gen
-        ]
-
+        launch_args +
+        [robot_launch, reach_gen]
     )

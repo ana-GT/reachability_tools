@@ -21,6 +21,7 @@ set(DEPS
   robot_sim_msgs
   generate_parameter_library
   pluginlib
+  interactive_markers
 )
 
 foreach(dependency IN ITEMS ${DEPS})
@@ -45,7 +46,8 @@ add_library(${PROJECT_NAME} SHARED
             src/reachability_description.cpp 
             src/reach_graph.cpp 
             src/reach_serialization.cpp
-            src/reach_utilities.cpp)
+            src/reach_utilities.cpp
+            src/gmm_s2.cpp)
 target_link_libraries(${PROJECT_NAME} ${REACH_PARAM_LIB})
 ament_target_dependencies( ${PROJECT_NAME} ${DEPS})
 
@@ -66,6 +68,10 @@ ament_target_dependencies(load_reachability_node ${DEPS})
 add_executable(estimate_reachability_limits_node tools/estimate_reachability_limits_node.cpp)
 target_link_libraries(estimate_reachability_limits_node ${PROJECT_NAME})
 ament_target_dependencies(estimate_reachability_limits_node ${DEPS})
+
+add_executable(view_gmm_node tools/view_gmm_node.cpp)
+target_link_libraries(view_gmm_node ${PROJECT_NAME})
+ament_target_dependencies(view_gmm_node ${DEPS})
 
 
 ##########
@@ -97,6 +103,7 @@ install(TARGETS ${PROJECT_NAME}
   generate_reachability_node  
   load_reachability_node 
   estimate_reachability_limits_node
+  view_gmm_node
   app_hand_to_user
   app_robot_to_task
   app_robot_to_task_2

@@ -28,7 +28,7 @@
   <depend>robot_sim_msgs</depend>
   <depend>generate_parameter_library</depend>
   <depend>pluginlib</depend>
-  
+  <depend>interactive_markers</depend> <!-- TEMPORAL REACH-->
   <export>
     <build_type>ament_cmake</build_type>
   </export>

@@ -25,7 +25,36 @@ bool getMinMaxSamples(const reachability_msgs::msg::ReachGraph &_rg,
 }
 
 
+double manipValue1(const KDL::JntArray& _q, const std::shared_ptr<KDL::ChainJntToJacSolver> &_jac_solver)
+{
+  KDL::Jacobian jac(_q.data.size());
+
+  _jac_solver->JntToJac(_q, jac);
+
+  Eigen::JacobiSVD<Eigen::MatrixXd> svdsolver(jac.data);
+  Eigen::MatrixXd singular_values = svdsolver.singularValues();
+
+  double error = 1.0;
+  for (unsigned int i = 0; i < singular_values.rows(); ++i)
+    error *= singular_values(i, 0);
+
+  return error;
 }
+
+double manipValue2(const KDL::JntArray& _q, const std::shared_ptr<KDL::ChainJntToJacSolver> &_jac_solver)
+{
+  KDL::Jacobian jac(_q.data.size());
+
+  _jac_solver->JntToJac(_q, jac);
+
+  Eigen::JacobiSVD<Eigen::MatrixXd> svdsolver(jac.data);
+  Eigen::MatrixXd singular_values = svdsolver.singularValues();
+
+  return singular_values.minCoeff() / singular_values.maxCoeff();
+}
+
+
+} // namespace reach_utils
 
 
 
@@ -126,3 +155,19 @@ sensor_msgs::msg::JointState jntArrayToMsg(const KDL::JntArray &_q,
 
   return js;
 }
+
+/*
+double manipPenalty(const KDL::JntArray& q)
+{
+  double penalty = 1.0;
+  for (uint i = 0; i < q.data.size(); i++)
+  {
+    if (types[i] == KDL::BasicJointType::Continuous)
+      continue;
+    double range = ub(i) - lb(i);
+    penalty *= ((arr(i) - lb(i)) * (ub(i) - arr(i)) / (range * range));
+  }
+  return std::max(0.0, 1.0 - exp(-1 * penalty));
+}*/
+
+
