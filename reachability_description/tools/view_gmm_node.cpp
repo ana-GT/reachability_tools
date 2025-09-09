@@ -76,8 +76,8 @@ class RiemannianTest : public rclcpp::Node {
     for(int i =  min_index; i <= max_index; ++i)
     {
       auto p = frames[i].translation();
-      if( p.x() > 0 || p.y() > 0 || p.z() < z)
-        continue;
+      //if( p.x() > 0 || p.y() > 0 || p.z() < z)
+     //   continue;
         
       visualization_msgs::msg::Marker mi = drawSphere(p.x(), p.y(), p.z(), small_diam, r, g, b, a, id);
       ma.markers.push_back(mi);
@@ -90,8 +90,8 @@ class RiemannianTest : public rclcpp::Node {
     std::vector<Eigen::Vector3d> points;
     for(int i = min_index; i <= max_index; ++i)
     {
-       if(frames[i].translation().x() > 0 || frames[i].translation().y() > 0 || frames[i].translation().z() < z)
-         continue;
+       //if(frames[i].translation().x() > 0 || frames[i].translation().y() > 0 || frames[i].translation().z() < z)
+       //  continue;
        Eigen::Vector3d p;
        p = frames[i].translation() - Eigen::Vector3d(x,y,z);
        double norm = p.norm();
@@ -103,7 +103,7 @@ class RiemannianTest : public rclcpp::Node {
     // If no converge, don't publish
     int iters = 20;
     double thresh = 0.0001;
-    if(!s2::minimizeCentroid(points, u, iters, thresh))
+    /*if(!s2::minimizeCentroid(points, u, iters, thresh))
     { RCLCPP_ERROR(this->get_logger(), "No minimizing, not publishing!");
       return;
     }
@@ -111,7 +111,14 @@ class RiemannianTest : public rclcpp::Node {
     // Publish this point
     visualization_msgs::msg::Marker mc = drawSphere(x + u.x()*diam/2.0, y+ u.y()*diam/2.0, z + u.z()*diam/2.0, small_diam, 1.0, 0.0, 0.0, 1.0, id);
     ma.markers.push_back(mc);
-    
+    */
+
+     s2::GMM gmm;
+     gmm.addPoints(points);
+     int k = 4;
+     std::vector<s2::Gaussian> gs;
+     std::vector<s2::GmmPoint> ps;
+     gmm.EM(k, gs, ps);
             
     // Publish them all
     pub_->publish(ma);

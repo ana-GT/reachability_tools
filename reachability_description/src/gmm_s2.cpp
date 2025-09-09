@@ -2,6 +2,7 @@
 
 #include <reachability_description/gmm_s2.h>
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp/rclcpp.hpp>
 
 namespace s2 {
 
@@ -23,8 +24,6 @@ namespace s2 {
        u_tm = mean(_xs, u_m);
   
        u_m_new = Exp(u_m, u_tm);
-      // Normalize for good measure
-      u_m_new.normalize();
        
        if( (u_m_new - u_m).norm() < _threshold)
        {RCLCPP_INFO(rclcpp::get_logger("GMMS2"), "Converged %d/%d!!!!!", i, _num_iters);
@@ -76,10 +75,6 @@ namespace s2 {
      v = (_y - _x.transpose()*_y*_x);
      u = d(_x, _y)* v / v.norm();
      
-//     RCLCPP_INFO(rclcpp::get_logger("GMMS2"), "Log between  %f %f %f and %f %f %f is: %f", 
-//                 _x.x(), _x.y(), _x.z(), _y.x(), _y.y(), _y.z(), u);
-
-     
      return u;
   }
 
@@ -94,7 +89,176 @@ namespace s2 {
    double u_norm = _u.norm();
    y = _x*cos(u_norm) + (_u/u_norm)*sin(u_norm);
    
+   // Normalize for good measure   
+   y.normalize();
+
    return y;
   }
+
+  ////////////////////////////////////////////////
+  // GMM
+  ////////////////////////////////////////////////
+  GMM::GMM()
+  {
+    num_iterations_ = 20;
+  }
+  
+  void GMM::addPoints(const std::vector<Eigen::Vector3d> &_x)
+  {
+    xs_.clear();
+    xs_.resize(_x.size());
+
+    int i = 0;
+    for(auto xi : _x)
+    {
+      xs_[i].x = xi; 
+      i++;
+    }
+  }
+
+  bool GMM::EM(const int &_k, std::vector<Gaussian> &_gs, std::vector<GmmPoint> &_ps)
+  {
+    k_ = _k;
+
+    if(!initializeParameters(_k))
+      return false;
+
+        RCLCPP_INFO(rclcpp::get_logger("gmm"), "Start EM");
+    for(int i = 0; i < num_iterations_; ++i)
+    {
+      Estep();
+      Mstep();
+      for(int k = 0; k < k_; ++k) {
+        Eigen::Vector3d u;
+        u = params_[k].u;
+        RCLCPP_INFO(rclcpp::get_logger("gmm"), "Iter[%d] U: %f %f %f pk: %f",
+        u.x(), u.y(), u.z(), params_[k].pi_k);
+      }
+    }
+
+    _ps = this->xs_;
+    _gs = this->params_;
+
+    return true;
+  }
+
+  /**
+   * @funcion Estep
+   */
+  void GMM::Estep()
+  {
+    int N = xs_.size();
+
+    for(auto &x : xs_)
+    {
+      double sum_nums = 0;
+      for(int j = 0; j < k_; ++j)
+      { 
+        x.gk[j] = params_[j].pi_k * normalDist(x, params_[j]);
+        sum_nums += x.gk[j];
+      }
+
+      for(int j = 0; j < k_; ++j)
+        x.gk[j] /= sum_nums;
+    }
+  }
+
+/**
+ * @brief Mstep
+ */
+  void GMM::Mstep() {
+
+    int N = xs_.size();
+
+    //-- Calculate Nk
+    double Nk[k_];
+    for(int k = 0; k < k_; ++k)
+    {
+      Nk[k] = 0.0;
+      for(auto x : xs_)
+        Nk[k] += x.gk[k];
+    }
+    
+    //-- Calculate new uk
+    for(int k = 0; k < k_; ++k)
+    {
+      Eigen::Vector3d u_new, ut_new, u_last;
+      u_last = params_[k].u;
+      ut_new = Eigen::Vector3d::Zero();
+
+      for(auto x : xs_)
+         ut_new += x.gk[k] * Log(u_last, x.x);
+
+      ut_new /= Nk[k];
+      u_new = Exp(u_last, ut_new);
+
+      // Normalize for good measure
+      u_new.normalize();
+
+      // Store
+      params_[k].u = u_new;
+    }
+
+    //-- Calculate new Sk
+    for(int k = 0; k < k_; ++k)
+    {
+      Eigen::Matrix3d S_new;
+      S_new = Eigen::Matrix3d::Zero();
+
+      for(auto x : xs_)
+      {
+        Eigen::Vector3d log;
+        log = Log(params_[k].u, x.x);
+        
+        S_new += x.gk[k]*log*log.transpose();
+      }
+
+      S_new /= Nk[k];
+
+      // Store
+      params_[k].S = S_new;
+    }
+
+    //-- Calculate pi_k
+    for(int k = 0; k < k_; ++k)
+      params_[k].pi_k = Nk[k] / (double) N;
+
+
+  }
+
+  double GMM::normalDist(const GmmPoint &_x, Gaussian _params)
+  {
+    int d = 2;
+    Eigen::Matrix3d S;
+    Eigen::Vector3d log;
+
+    log = Log(_params.u, _x.x);
+
+    return exp( -0.5*log.transpose() *_params.S.inverse()*log ) / sqrt( pow(2*M_PI, d)*S.determinant() );
+  }
+
+  bool GMM::initializeParameters(const int &_k)
+  {
+    params_.clear();
+    params_.resize(_k);
+
+    if(_k == 0)
+      return false;
+
+    if(xs_.size() < _k)
+      return false;
+
+    int index = 0;
+    for(int i = 0; i < _k; ++i)
+    {
+      index = (double)(i)* (double)(xs_.size() - 1)/(double)_k ;
+      params_[i].u = xs_[index].x;
+      params_[i].S = Eigen::Matrix3d::Identity();
+      params_[i].pi_k = 1.0/(double)_k;
+    }
+
+    return true;
+  }
+
 
 } // namespace s2
