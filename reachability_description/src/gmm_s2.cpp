@@ -135,29 +135,32 @@ namespace s2 {
     if(!initializeParameters(_k))
       return false;
 
-    bool error = false;
     for(int i = 0; i < num_iterations_; ++i)
     {
+      std::vector<Gaussian> param_old;
+      param_old = params_;
+      
       if(!Estep())
       { 
-        RCLCPP_INFO(rclcpp::get_logger("gmm"), "[%d] E returned false. Should get out of loop for", i); 
-        error = true;
-        break;
+        RCLCPP_INFO(rclcpp::get_logger("gmm"), "[%d] Error in Estep calculation", i); 
+        return false;
       }  
       Mstep();
-      if(i == num_iterations_ - 1)
-      {
-        for(int k = 0; k < k_; ++k) {
-        Eigen::Vector3d u;
-        u = params_[k].u;
-        RCLCPP_INFO(rclcpp::get_logger("gmm"), "Iter[%d] U: %f %f %f pk: %f", k,
-        u.x(), u.y(), u.z(), params_[k].pi_k);
-        }
-      } // if
-    }
 
-    if(error)
-      return false;
+      double err_avg = 0;
+      for(int k = 0; k < k_; ++k) {
+        
+        Eigen::Vector3d diff; 
+        diff = param_old[k].u - params_[k].u;
+        err_avg += diff.norm();
+        }
+        err_avg /= (double) k_;
+	if(err_avg < 0.01)
+	{
+	  RCLCPP_INFO(rclcpp::get_logger("gmm"), "Converged in iter %d" , i);
+	  break;
+	}
+      } // for i
     
     _ps = this->xs_;
     _gs = this->params_;
@@ -220,7 +223,7 @@ namespace s2 {
       for(auto x : xs_)
          ut_new += x.gk[k] * Log(u_last, x.x);
 
-      ut_new *= (Nk[k]/(double)N);
+      ut_new /= Nk[k]; //(Nk[k]/(double)N);
       u_new = Exp(u_last, ut_new);
 
       // Normalize for good measure
