@@ -220,7 +220,7 @@ namespace s2 {
       for(auto x : xs_)
          ut_new += x.gk[k] * Log(u_last, x.x);
 
-      ut_new /= Nk[k];
+      ut_new *= (Nk[k]/(double)N);
       u_new = Exp(u_last, ut_new);
 
       // Normalize for good measure

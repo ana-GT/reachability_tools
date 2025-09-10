@@ -15,6 +15,12 @@ double modulo(const double &_val, const double &_factor)
   return new_val; 
 }
 
+double random(double _min, double _max) 
+{
+  double r = static_cast<double>(rand()) / RAND_MAX;
+  return _min + r*(_max - _min);
+}
+
 /**
  * @class RiemannianTest
  */
@@ -116,21 +122,46 @@ class RiemannianTest : public rclcpp::Node {
      
      s2::GMM gmm;
      gmm.addPoints(points);
-     int k = 8;
+     int k = 5;
      std::vector<s2::Gaussian> gs;
      std::vector<s2::GmmPoint> ps;
      gmm.EM(k, gs, ps);
      
      for(int i = 0; i < k; ++i)
      {
-     double xi, yi, zi;
-     xi = x + gs[i].u.x()*diam/2.0;
-     yi = y+ gs[i].u.y()*diam/2.0;
-     zi = z + gs[i].u.z()*diam/2.0;
-     	RCLCPP_INFO(this->get_logger() ,"XYZ orig: %f %f %f. GM(%d): %f %f %f", x, y, z, i, xi, yi, zi);
-    visualization_msgs::msg::Marker mc = drawSphere(xi, yi, zi, small_diam, 1.0, 1.0, 0.0, 1.0, id);
-    ma.markers.push_back(mc);
+      double xi, yi, zi;
+      xi = x + gs[i].u.x()*diam/2.0;
+      yi = y+ gs[i].u.y()*diam/2.0;
+      zi = z + gs[i].u.z()*diam/2.0;    
+     
+     RCLCPP_INFO(this->get_logger() ,"XYZ orig: %f %f %f. GM(%d): %f %f %f", x, y, z, i, xi, yi, zi);
+     visualization_msgs::msg::Marker mc = drawSphere(xi, yi, zi, small_diam, 1.0, 1.0, 0.0, 1.0, id);
+     ma.markers.push_back(mc);
      id++;
+     }
+     
+     std::vector<Eigen::Vector3d> rgb;
+     for(int i = 0; i < k; ++i )
+     {
+       Eigen::Vector3d rgb_i(random(0.0, 1.0), random(0.0, 1.0), random(0.0, 1.0));
+       rgb.push_back(rgb_i); 
+     }
+     rgb[0] = Eigen::Vector3d(1.0, 1.0, 0.0); // cyan
+     rgb[1] = Eigen::Vector3d(0.98, 0.4, 0.0); // orange
+     rgb[2] = Eigen::Vector3d(0.47, 0.21, 0.008); // brown
+     rgb[3] = Eigen::Vector3d(0.1, 1.0, 0.1); // Green
+     rgb[4] = Eigen::Vector3d(0.0, 0.0, 1.0); // Blue
+     
+     for(auto pi : ps)
+     {
+      auto max_iter = std::max_element( pi.gk.begin(), pi.gk.end() );
+      int max_k = std::distance(pi.gk.begin(), max_iter);
+      if(max_iter != pi.gk.end())
+      {
+        visualization_msgs::msg::Marker mc = drawSphere(x + pi.x.x()*diam/2.0, y+ pi.x.y()*diam/2.0, z + pi.x.z()*diam/2.0, small_diam, (float)rgb[max_k].x(), (float)rgb[max_k].y(), (float)rgb[max_k].z(), 1.0, id);
+            ma.markers.push_back(mc);
+      id++;
+      }
      }
           
     // Publish them all
@@ -228,6 +259,8 @@ class RiemannianTest : public rclcpp::Node {
 int main(int argc, char* argv[])
 {
   rclcpp::init(argc, argv);
+  srand(static_cast<unsigned int>(time(0)));
+
   std::shared_ptr<RiemannianTest> rmt = std::make_shared<RiemannianTest>("view_gmm_node");
 
   rclcpp::spin(rmt);
