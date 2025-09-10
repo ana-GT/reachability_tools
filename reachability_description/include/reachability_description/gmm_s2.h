@@ -6,11 +6,11 @@
 
 namespace s2 {
 
-  Eigen::Vector3d Log(const Eigen::Vector3d &_x, const Eigen::Vector3d &_y);
-  Eigen::Vector3d Exp(Eigen::Vector3d &_x, Eigen::Vector3d &_u);
+  Eigen::Vector2d Log(const Eigen::Vector3d &_x, const Eigen::Vector3d &_y);
+  Eigen::Vector3d Exp(Eigen::Vector3d &_x, Eigen::Vector2d &_u);
   double d(const Eigen::Vector3d &_x, const Eigen::Vector3d &_y);
 
-  Eigen::Vector3d mean(const std::vector<Eigen::Vector3d> &_xs, 
+  Eigen::Vector2d mean(const std::vector<Eigen::Vector3d> &_xs, 
   		       const Eigen::Vector3d &_u_m);
   		       
   bool minimizeCentroid(const std::vector<Eigen::Vector3d> &_xs, 
@@ -23,8 +23,14 @@ namespace s2 {
    */
   struct Gaussian {
     Eigen::Vector3d u;
-    Eigen::Matrix3d S;
+    Eigen::Matrix2d S;
     double pi_k;
+    
+    Gaussian() {
+      u = Eigen::Vector3d::Zero();
+      S = Eigen::Matrix2d::Identity();
+      pi_k = 1.0;
+    }
   };
 
   struct GmmPoint {
@@ -43,7 +49,7 @@ namespace s2 {
       void addPoints(const std::vector<Eigen::Vector3d> &_x);
       bool initializeParameters(const int &_k);
       bool EM(const int &_k, std::vector<Gaussian> &_gs, std::vector<GmmPoint> &_ps);
-      void Estep();
+      bool Estep();
       void Mstep();
       double normalDist(const GmmPoint &_x, Gaussian _params);      
 

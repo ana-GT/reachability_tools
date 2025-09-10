@@ -14,7 +14,7 @@ namespace s2 {
     bool converged = false;
     
     Eigen::Vector3d u_m, u_m_new;
-    Eigen::Vector3d u_tm;
+    Eigen::Vector2d u_tm;
     
     // Let's initialize u_m randomly as the first 
     u_m = _xs[8];
@@ -41,10 +41,10 @@ namespace s2 {
   /**
    * @function mean : Mean 
    */
-  Eigen::Vector3d mean(const std::vector<Eigen::Vector3d> &_xs, 
+  Eigen::Vector2d mean(const std::vector<Eigen::Vector3d> &_xs, 
   		       const Eigen::Vector3d &_u_m)
   {    
-    Eigen::Vector3d u = Eigen::Vector3d::Zero();
+    Eigen::Vector2d u = Eigen::Vector2d::Zero();
     
     for(int i = 0; i < _xs.size(); ++i)
      u += Log(_u_m, _xs[i]);
@@ -55,7 +55,7 @@ namespace s2 {
   }
   
   /**
-   * @function d : Metric product 
+   * @function d : Metric product. Not sure of this one 
    */  
   double d(const Eigen::Vector3d &_x, const Eigen::Vector3d &_y)
   {
@@ -65,16 +65,25 @@ namespace s2 {
   /**
    * @function u = Log_x(y), x in M, y in M, u in TM 
    */
-  Eigen::Vector3d Log(const Eigen::Vector3d &_x, const Eigen::Vector3d &_y)
+  Eigen::Vector2d Log(const Eigen::Vector3d &_x, const Eigen::Vector3d &_y)
   {
-     Eigen::Vector3d u, v;
+     Eigen::Vector2d u;
+     Eigen::Vector3d y;
      
-     if( (_x - _y).norm() < 0.000001)
-       return _x;
+     Eigen::Matrix3d Rp;
+     Rp = Eigen::Quaterniond().setFromTwoVectors(_x, Eigen::Vector3d(0,0,1));
+
+     y = Rp * _y;
+     y.normalize();
+     double theta = acos(y.z());
      
-     v = (_y - _x.transpose()*_y*_x);
-     u = d(_x, _y)* v / v.norm();
-     
+     double t_sint;
+     if( fabs(theta) < 1e-5)
+       t_sint = 1.0;
+     else 
+       t_sint = theta/sin(theta);
+       
+     u = Eigen::Vector2d(y.x()*t_sint, y.y() * t_sint);
      return u;
   }
 
@@ -82,13 +91,18 @@ namespace s2 {
   /** 
    * @brief y = Exp_x(u) x in M, u in TM, return value y in M 
    */
-  Eigen::Vector3d Exp(Eigen::Vector3d &_x, Eigen::Vector3d &_u)
+  Eigen::Vector3d Exp(Eigen::Vector3d &_x, Eigen::Vector2d &_u)
   {
-   Eigen::Vector3d y;
+  
+   // Calculate Rp: Rotation between x and north pole
+   Eigen::Matrix3d Rp;
+   Rp = Eigen::Quaterniond().setFromTwoVectors(_x, Eigen::Vector3d(0,0,1));
    
+   // Get exp
+   Eigen::Vector3d y;   
    double u_norm = _u.norm();
-   y = _x*cos(u_norm) + (_u/u_norm)*sin(u_norm);
-   
+   y = Eigen::Vector3d( _u.x() * sin(u_norm)/u_norm, _u.y() * sin(u_norm)/u_norm, cos(u_norm) ); 
+   y = Rp.inverse() * y;
    // Normalize for good measure   
    y.normalize();
 
@@ -100,7 +114,7 @@ namespace s2 {
   ////////////////////////////////////////////////
   GMM::GMM()
   {
-    num_iterations_ = 20;
+    num_iterations_ = 100;
   }
   
   void GMM::addPoints(const std::vector<Eigen::Vector3d> &_x)
@@ -111,31 +125,40 @@ namespace s2 {
     int i = 0;
     for(auto xi : _x)
     {
-      xs_[i].x = xi; 
+      xs_[i].x = xi;
       i++;
     }
   }
 
   bool GMM::EM(const int &_k, std::vector<Gaussian> &_gs, std::vector<GmmPoint> &_ps)
   {
-    k_ = _k;
-
     if(!initializeParameters(_k))
       return false;
 
-        RCLCPP_INFO(rclcpp::get_logger("gmm"), "Start EM");
+    bool error = false;
     for(int i = 0; i < num_iterations_; ++i)
     {
-      Estep();
+      if(!Estep())
+      { 
+        RCLCPP_INFO(rclcpp::get_logger("gmm"), "[%d] E returned false. Should get out of loop for", i); 
+        error = true;
+        break;
+      }  
       Mstep();
-      for(int k = 0; k < k_; ++k) {
+      if(i == num_iterations_ - 1)
+      {
+        for(int k = 0; k < k_; ++k) {
         Eigen::Vector3d u;
         u = params_[k].u;
-        RCLCPP_INFO(rclcpp::get_logger("gmm"), "Iter[%d] U: %f %f %f pk: %f",
+        RCLCPP_INFO(rclcpp::get_logger("gmm"), "Iter[%d] U: %f %f %f pk: %f", k,
         u.x(), u.y(), u.z(), params_[k].pi_k);
-      }
+        }
+      } // if
     }
 
+    if(error)
+      return false;
+    
     _ps = this->xs_;
     _gs = this->params_;
 
@@ -145,7 +168,7 @@ namespace s2 {
   /**
    * @funcion Estep
    */
-  void GMM::Estep()
+  bool GMM::Estep()
   {
     int N = xs_.size();
 
@@ -154,13 +177,20 @@ namespace s2 {
       double sum_nums = 0;
       for(int j = 0; j < k_; ++j)
       { 
-        x.gk[j] = params_[j].pi_k * normalDist(x, params_[j]);
+        double d = normalDist(x, params_[j]);
+        if( std::isnan(d) )
+          return false;
+          
+        x.gk[j] = params_[j].pi_k * d;
+
         sum_nums += x.gk[j];
       }
 
       for(int j = 0; j < k_; ++j)
         x.gk[j] /= sum_nums;
     }
+    
+    return true;
   }
 
 /**
@@ -182,9 +212,10 @@ namespace s2 {
     //-- Calculate new uk
     for(int k = 0; k < k_; ++k)
     {
-      Eigen::Vector3d u_new, ut_new, u_last;
+      Eigen::Vector2d ut_new;
+      Eigen::Vector3d u_new, u_last;
       u_last = params_[k].u;
-      ut_new = Eigen::Vector3d::Zero();
+      ut_new = Eigen::Vector2d::Zero();
 
       for(auto x : xs_)
          ut_new += x.gk[k] * Log(u_last, x.x);
@@ -202,12 +233,12 @@ namespace s2 {
     //-- Calculate new Sk
     for(int k = 0; k < k_; ++k)
     {
-      Eigen::Matrix3d S_new;
-      S_new = Eigen::Matrix3d::Zero();
+      Eigen::Matrix2d S_new;
+      S_new = Eigen::Matrix2d::Zero();
 
       for(auto x : xs_)
       {
-        Eigen::Vector3d log;
+        Eigen::Vector2d log;
         log = Log(params_[k].u, x.x);
         
         S_new += x.gk[k]*log*log.transpose();
@@ -229,16 +260,17 @@ namespace s2 {
   double GMM::normalDist(const GmmPoint &_x, Gaussian _params)
   {
     int d = 2;
-    Eigen::Matrix3d S;
-    Eigen::Vector3d log;
+    Eigen::Vector2d log;
 
     log = Log(_params.u, _x.x);
 
-    return exp( -0.5*log.transpose() *_params.S.inverse()*log ) / sqrt( pow(2*M_PI, d)*S.determinant() );
+    return exp( -0.5*log.transpose() *_params.S.inverse()*log ) / sqrt( pow(2*M_PI, d)*_params.S.determinant() );
   }
 
   bool GMM::initializeParameters(const int &_k)
   {
+    k_ = _k;
+    
     params_.clear();
     params_.resize(_k);
 
@@ -253,9 +285,12 @@ namespace s2 {
     {
       index = (double)(i)* (double)(xs_.size() - 1)/(double)_k ;
       params_[i].u = xs_[index].x;
-      params_[i].S = Eigen::Matrix3d::Identity();
+      params_[i].S = Eigen::Matrix2d::Identity();
       params_[i].pi_k = 1.0/(double)_k;
     }
+    
+    for(auto &x : xs_)
+       x.gk.resize(k_);
 
     return true;
   }

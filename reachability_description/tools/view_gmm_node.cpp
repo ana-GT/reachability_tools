@@ -77,7 +77,7 @@ class RiemannianTest : public rclcpp::Node {
     {
       auto p = frames[i].translation();
       //if( p.x() > 0 || p.y() > 0 || p.z() < z)
-     //   continue;
+      //  continue;
         
       visualization_msgs::msg::Marker mi = drawSphere(p.x(), p.y(), p.z(), small_diam, r, g, b, a, id);
       ma.markers.push_back(mi);
@@ -101,9 +101,9 @@ class RiemannianTest : public rclcpp::Node {
 
 
     // If no converge, don't publish
-    int iters = 20;
+    /*int iters = 20;
     double thresh = 0.0001;
-    /*if(!s2::minimizeCentroid(points, u, iters, thresh))
+    if(!s2::minimizeCentroid(points, u, iters, thresh))
     { RCLCPP_ERROR(this->get_logger(), "No minimizing, not publishing!");
       return;
     }
@@ -112,14 +112,27 @@ class RiemannianTest : public rclcpp::Node {
     visualization_msgs::msg::Marker mc = drawSphere(x + u.x()*diam/2.0, y+ u.y()*diam/2.0, z + u.z()*diam/2.0, small_diam, 1.0, 0.0, 0.0, 1.0, id);
     ma.markers.push_back(mc);
     */
-
+    
+     
      s2::GMM gmm;
      gmm.addPoints(points);
-     int k = 4;
+     int k = 8;
      std::vector<s2::Gaussian> gs;
      std::vector<s2::GmmPoint> ps;
      gmm.EM(k, gs, ps);
-            
+     
+     for(int i = 0; i < k; ++i)
+     {
+     double xi, yi, zi;
+     xi = x + gs[i].u.x()*diam/2.0;
+     yi = y+ gs[i].u.y()*diam/2.0;
+     zi = z + gs[i].u.z()*diam/2.0;
+     	RCLCPP_INFO(this->get_logger() ,"XYZ orig: %f %f %f. GM(%d): %f %f %f", x, y, z, i, xi, yi, zi);
+    visualization_msgs::msg::Marker mc = drawSphere(xi, yi, zi, small_diam, 1.0, 1.0, 0.0, 1.0, id);
+    ma.markers.push_back(mc);
+     id++;
+     }
+          
     // Publish them all
     pub_->publish(ma);
   }
