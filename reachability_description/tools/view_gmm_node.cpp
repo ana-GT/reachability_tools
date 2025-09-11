@@ -91,7 +91,6 @@ class RiemannianTest : public rclcpp::Node {
     }
  
     // Calculate the mean of these points
-    Eigen::Vector3d u;
 
     std::vector<Eigen::Vector3d> points;
     for(int i = min_index; i <= max_index; ++i)
@@ -119,7 +118,7 @@ class RiemannianTest : public rclcpp::Node {
     ma.markers.push_back(mc);
     */
     
-     
+     /*
      s2::GMM gmm;
      gmm.addPoints(points);
      int k = 5;
@@ -163,6 +162,50 @@ class RiemannianTest : public rclcpp::Node {
       id++;
       }
      }
+
+     */
+
+     s2::KMedoids km;
+     km.addPoints(points);
+     unsigned int k = 8;
+     std::vector<Eigen::Vector3d> u;
+     std::vector<unsigned int> indices;
+     km.kmedoids(k, u, indices);
+     
+     for(int i = 0; i < k; ++i)
+     {
+      double xi, yi, zi;
+      xi = x + u[i].x()*diam/2.0;
+      yi = y+ u[i].y()*diam/2.0;
+      zi = z + u[i].z()*diam/2.0;    
+     
+     RCLCPP_INFO(this->get_logger() ,"XYZ orig: %f %f %f. GM(%d): %f %f %f", x, y, z, i, xi, yi, zi);
+     visualization_msgs::msg::Marker mc = drawSphere(xi, yi, zi, small_diam, 1.0, 1.0, 0.0, 1.0, id);
+     ma.markers.push_back(mc);
+     id++;
+     }
+     
+     std::vector<Eigen::Vector3d> rgb;
+     for(int i = 0; i < k; ++i )
+     {
+       Eigen::Vector3d rgb_i(random(0.0, 1.0), random(0.0, 1.0), random(0.0, 1.0));
+       rgb.push_back(rgb_i); 
+     }
+     rgb[0] = Eigen::Vector3d(1.0, 1.0, 0.0); // cyan
+     rgb[1] = Eigen::Vector3d(0.98, 0.4, 0.0); // orange
+     rgb[2] = Eigen::Vector3d(0.47, 0.21, 0.008); // brown
+     rgb[3] = Eigen::Vector3d(0.1, 1.0, 0.1); // Green
+     rgb[4] = Eigen::Vector3d(0.0, 0.0, 1.0); // Blue
+     
+     for(int i = 0; i < points.size(); ++i)
+     {
+      int max_k = indices[i];
+      visualization_msgs::msg::Marker mc = drawSphere(x + points[i].x()*diam/2.0, y+ points[i].y()*diam/2.0, z + points[i].z()*diam/2.0, small_diam, (float)rgb[max_k].x(), (float)rgb[max_k].y(), (float)rgb[max_k].z(), 1.0, id);
+            ma.markers.push_back(mc);
+            id++;
+     }
+
+
           
     // Publish them all
     pub_->publish(ma);

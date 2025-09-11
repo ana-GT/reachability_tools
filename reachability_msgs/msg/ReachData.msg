@@ -5,5 +5,8 @@ uint8 state
 
 geometry_msgs/Pose pose
 
+# Orientation 
+geometry_msgs/Quaternion[] qs
+
 reachability_msgs/Param[] metrics
 reachability_msgs/ReachSample[] samples
