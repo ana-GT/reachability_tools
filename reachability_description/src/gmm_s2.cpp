@@ -46,8 +46,8 @@ namespace s2 {
   {    
     Eigen::Vector2d u = Eigen::Vector2d::Zero();
     
-    for(int i = 0; i < _xs.size(); ++i)
-     u += Log(_u_m, _xs[i]);
+    for(auto xi : _xs)
+     u += Log(_u_m, xi);
     
     u /= (double)(_xs.size());
      
@@ -182,8 +182,11 @@ namespace s2 {
       { 
         double d = normalDist(x, params_[j]);
         if( std::isnan(d) )
+        {
+          RCLCPP_ERROR(rclcpp::get_logger("gmm"), "Error in Estep for point (%f %f %f) with norm: %f with u: (%f %f %f) and norm: %f", 
+            x.x.x(), x.x.y(), x.x.z(), x.x.norm(), params_[j].u.x(), params_[j].u.y(), params_[j].u.z(), params_[j].u.norm());
           return false;
-          
+        }  
         x.gk[j] = params_[j].pi_k * d;
 
         sum_nums += x.gk[j];
@@ -238,15 +241,15 @@ namespace s2 {
     {
       Eigen::Matrix2d S_new;
       S_new = Eigen::Matrix2d::Zero();
-
       for(auto x : xs_)
       {
         Eigen::Vector2d log;
         log = Log(params_[k].u, x.x);
         
-        S_new += x.gk[k]*log*log.transpose();
+        Eigen::Matrix2d par;
+        par = x.gk[k]*log*log.transpose();
+        S_new += par;
       }
-
       S_new /= Nk[k];
 
       // Store
@@ -260,14 +263,22 @@ namespace s2 {
 
   }
 
+  /**
+   * @function normalDist
+   */
   double GMM::normalDist(const GmmPoint &_x, Gaussian _params)
   {
     int d = 2;
     Eigen::Vector2d log;
 
     log = Log(_params.u, _x.x);
-
-    return exp( -0.5*log.transpose() *_params.S.inverse()*log ) / sqrt( pow(2*M_PI, d)*_params.S.determinant() );
+    
+    double nd = exp( -0.5*log.transpose() *_params.S.inverse()*log ) / sqrt( pow(2*M_PI, d)*_params.S.determinant() );
+    if(std::isnan(nd))
+    {
+       RCLCPP_INFO_STREAM(rclcpp::get_logger("gmm"), "Log: (" << log.transpose() << ") and S: \n"<< _params.S.matrix() << "\n and det: " << _params.S.determinant());    
+    } 
+    return nd;
   }
 
   bool GMM::initializeParameters(const int &_k)
@@ -286,7 +297,7 @@ namespace s2 {
     int index = 0;
     for(int i = 0; i < _k; ++i)
     {
-      index = (double)(i)* (double)(xs_.size() - 1)/(double)_k ;
+      index = std::min( (int)std::ceil ( (double)(i)* (double)(xs_.size() - 1)/(double)_k ), (int)(xs_.size() - 1) );
       params_[i].u = xs_[index].x;
       params_[i].S = Eigen::Matrix2d::Identity();
       params_[i].pi_k = 1.0/(double)_k;
