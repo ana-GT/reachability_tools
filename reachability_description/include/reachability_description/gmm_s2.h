@@ -19,7 +19,7 @@ namespace s2 {
                          const double &_threshold = 0.0001);
 
   /**
-   * @class Gaussian 
+   * @struct Gaussian 
    */
   struct Gaussian {
     Eigen::Vector3d u;
@@ -58,6 +58,37 @@ namespace s2 {
 
       std::vector<Gaussian> params_;
       std::vector<GmmPoint> xs_;
+      int k_;
+  };
+
+  struct KMedoidPoint{
+    Eigen::Vector3d x;
+    unsigned int k;
+  };
+
+  /**
+   * @class kmedoids
+   */
+  class KMedoids {
+
+    public:
+      KMedoids();
+      void addPoints(const std::vector<Eigen::Vector3d> &_x);
+      bool kmedoids(const unsigned int &_k,
+            std::vector<Eigen::Vector3d> &_u,
+            std::vector<unsigned int> &_indices);
+
+    protected:
+
+      bool initializeParameters(const unsigned int &_k);
+      void calculateAssignments();
+      bool calculateMedoids();
+
+      int num_iterations_;
+      double medoids_thresh_;
+      
+      std::vector<Eigen::Vector3d> u_;
+      std::vector<KMedoidPoint> x_;
       int k_;
   };
 

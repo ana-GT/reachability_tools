@@ -310,4 +310,150 @@ namespace s2 {
   }
 
 
+  KMedoids::KMedoids()
+  {
+    num_iterations_ = 100;
+    medoids_thresh_ = 0.001;
+  }
+
+  /**
+   * @function
+   */
+  void KMedoids::addPoints(const std::vector<Eigen::Vector3d> &_x)
+  {
+    x_.clear();
+    for(auto xi : _x)
+    {
+      KMedoidPoint p;
+      p.x = xi;
+      x_.push_back(p);
+    }
+  }
+  
+  bool KMedoids::kmedoids(const unsigned int &_k, 
+            std::vector<Eigen::Vector3d> &_u,
+            std::vector<unsigned int> &_indices)
+  {
+    bool converged = false;
+
+    if(!initializeParameters(_k))
+      return false;
+
+    for(int i = 0; i < num_iterations_; ++i)
+    {
+      // Calculate assignments
+      calculateAssignments();
+      // Recalculate means
+      if(calculateMedoids())
+      {
+        RCLCPP_INFO(rclcpp::get_logger("med"), "Converged at iteration %d", i);
+        converged = true;
+        break;
+      }      
+    }
+
+    // Return assignments and means
+    if(converged)
+    {
+      _u.clear();
+      _indices.clear();
+
+      _u = u_;
+      for(auto xi : x_)
+        _indices.push_back(xi.k);
+    }
+
+    return converged;
+  }
+
+  void KMedoids::calculateAssignments()
+  {
+    int min_index;
+    double min_val, dist;
+
+    for(auto &xi : x_)
+    {
+      min_val = 10000;
+      min_index = -1;
+
+      for(int k = 0; k < k_; ++k)
+      {
+        dist = d(u_[k], xi.x);
+        if(dist < min_val)
+        {
+          min_val = dist;
+          min_index = k;
+        }
+      }
+
+      xi.k = min_index;
+    }
+
+
+  }
+
+  /**
+   * @return true if converged, false otherwise
+   */
+  bool KMedoids::calculateMedoids()
+  {
+    std::vector<Eigen::Vector3d> u_old;
+    u_old = u_;
+
+    for(int k = 0; k < k_; ++k)
+    {
+      Eigen::Vector2d num(0,0);
+      int den = 0;
+      int index = 0;
+    	for(auto xi : x_)
+    	{    	   
+    	   if(xi.k == k)
+    	   {
+    	      num += Log(u_[k], xi.x);
+    	      den += 1;
+    	   }
+    	}
+
+      num /= (double) den;    	
+    	u_[k] = Exp(u_[k], num);
+    } // for k
+
+
+    // Check convergence
+    double u_diff, sum_diff;
+    sum_diff = 0;
+    for(int k = 0; k < k_; ++k)
+    {
+      u_diff = (u_[k] - u_old[k]).norm();
+      sum_diff += u_diff;
+    }
+    
+    return (sum_diff / (double)k_) < medoids_thresh_;
+
+  }
+
+  bool KMedoids::initializeParameters(const unsigned int &_k)
+  {
+
+    k_ = _k;
+
+    u_.clear();
+    u_.resize(_k);
+
+    if(k_ == 0)
+      return false;
+
+    if(x_.size() < _k)
+      return false;
+
+    int index = 0;
+    for(int i = 0; i < _k; ++i)
+    {
+      index = (int)std::floor((double)(i)* (double)(x_.size() - 1)/(double)_k );
+      u_[i] = x_[index].x;
+    }
+    
+    return true;
+  }
+
 } // namespace s2
