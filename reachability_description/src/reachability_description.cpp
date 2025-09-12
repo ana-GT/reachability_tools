@@ -157,24 +157,24 @@ bool ReachabilityDescription::generateDescription(const std::string &_chain_grou
   for(auto ji : joint_configs)
     fk_solver_[_chain_group]->JntToCart(ji.second, fk_poses[ji.first]);
   
- //std::future<std::shared_ptr<ReachGraph>> ret1 = std::async( &ReachabilityDescription::reach_calc, this, 
- //                 x_min, y_min, z_min, 
- //                 x_mid, y_mid, z_max, 
- //                 chain_info_[_chain_group], 
- //                 params_[_chain_group].ik_max_time, params_[_chain_group].ik_epsilon, stringToType(params_[_chain_group].ik_type), 
- //                 joint_configs, fk_poses);
- //std::future<std::shared_ptr<ReachGraph>> ret2 = std::async( &ReachabilityDescription::reach_calc, this, 
- //                 x_min, y_mid, z_min, 
- //                 x_mid, y_max, z_max, 
- //                 chain_info_[_chain_group], 
- //                 params_[_chain_group].ik_max_time, params_[_chain_group].ik_epsilon, stringToType(params_[_chain_group].ik_type), 
- //                 joint_configs, fk_poses);
- //std::future<std::shared_ptr<ReachGraph>> ret3 = std::async( &ReachabilityDescription::reach_calc, this, 
- //                 x_mid, y_min, z_min, 
- //                 x_max, y_mid, z_max, 
- //                 chain_info_[_chain_group], 
- //                 params_[_chain_group].ik_max_time, params_[_chain_group].ik_epsilon, stringToType(params_[_chain_group].ik_type), 
- //                 joint_configs, fk_poses);
+ std::future<std::shared_ptr<ReachGraph>> ret1 = std::async( &ReachabilityDescription::reach_calc, this, 
+                  x_min, y_min, z_min, 
+                  x_mid, y_mid, z_max, 
+                  chain_info_[_chain_group], 
+                  params_[_chain_group].ik_max_time, params_[_chain_group].ik_epsilon, stringToType(params_[_chain_group].ik_type), 
+                  joint_configs, fk_poses);
+ std::future<std::shared_ptr<ReachGraph>> ret2 = std::async( &ReachabilityDescription::reach_calc, this, 
+                  x_min, y_mid, z_min, 
+                  x_mid, y_max, z_max, 
+                  chain_info_[_chain_group], 
+                  params_[_chain_group].ik_max_time, params_[_chain_group].ik_epsilon, stringToType(params_[_chain_group].ik_type), 
+                  joint_configs, fk_poses);
+ std::future<std::shared_ptr<ReachGraph>> ret3 = std::async( &ReachabilityDescription::reach_calc, this, 
+                  x_mid, y_min, z_min, 
+                  x_max, y_mid, z_max, 
+                  chain_info_[_chain_group], 
+                  params_[_chain_group].ik_max_time, params_[_chain_group].ik_epsilon, stringToType(params_[_chain_group].ik_type), 
+                  joint_configs, fk_poses);
   std::future<std::shared_ptr<ReachGraph>> ret4 = std::async( &ReachabilityDescription::reach_calc, this, 
                   x_mid, y_mid, z_min, 
                   x_max, y_max, z_max, 
@@ -182,27 +182,27 @@ bool ReachabilityDescription::generateDescription(const std::string &_chain_grou
                   params_[_chain_group].ik_max_time, params_[_chain_group].ik_epsilon, stringToType(params_[_chain_group].ik_type), 
                   joint_configs, fk_poses);
 
- //auto r1 = ret1.get();
- //auto r2 = ret2.get();
- //auto r3 = ret3.get();
+ auto r1 = ret1.get();
+ auto r2 = ret2.get();
+ auto r3 = ret3.get();
  auto r4 = ret4.get();
- /*
+ 
  if(!copyPartialGraph(r1, _chain_group))
    return false;
  r1.reset();  
  
  if(!copyPartialGraph(r2, _chain_group))
    return false;
- r2.reset();*/
+ r2.reset();
+
+ if(!copyPartialGraph(r3, _chain_group))
+   return false;
+ r3.reset();
 
  if(!copyPartialGraph(r4, _chain_group, true))
    return false;
  r4.reset();
-/*
- if(!copyPartialGraph(r3, _chain_group))
-   return false;
- r3.reset();
-  */    
+
  return true;
 }
 
@@ -663,7 +663,7 @@ reachability_msgs::msg::ReachData ReachabilityDescription::calculateReachability
   
   // Get minimal representation
   std::vector<geometry_msgs::msg::Pose> means;
-  if( getGMM(rdata.samples, _reach_graph->getResolution(), _x, _y, _z, means) )
+  if( getReducedSamples(rdata.samples, _reach_graph->getResolution(), _x, _y, _z, means) )
      rdata.reduced_samples = means;  
 
   // Set status
@@ -673,14 +673,15 @@ reachability_msgs::msg::ReachData ReachabilityDescription::calculateReachability
 }
 
 /**
- * @function getGMM
+ * @function getReducedSamples
  */
-bool ReachabilityDescription::getGMM( const std::vector<reachability_msgs::msg::ReachSample> &_samples, const double &_res, 
-             const double &_x, const double &_y, const double &_z, std::vector<geometry_msgs::msg::Pose> &_means)
+bool ReachabilityDescription::getReducedSamples( const std::vector<reachability_msgs::msg::ReachSample> &_samples, 
+	const double &_res, const double &_x, const double &_y, const double &_z, 
+        std::vector<geometry_msgs::msg::Pose> &_means)
 {
   _means.clear();
 
-  int k = 4;
+  int k = 10;
 
   if(_samples.empty())
     return false;
@@ -692,10 +693,10 @@ bool ReachabilityDescription::getGMM( const std::vector<reachability_msgs::msg::
     return true;
   }  
 
-  RCLCPP_INFO(logger, "*** Get GMM for k: %d / %d", k, _samples.size());
+  //RCLCPP_INFO(logger, "*** Get kmedoids for k: %d / %d", k, _samples.size());
     
-  std::vector<s2::Gaussian> gs;
-  std::vector<s2::GmmPoint> ps;
+  std::vector<Eigen::Vector3d> u;
+  std::vector<unsigned int> indices;
 
   std::vector<Eigen::Vector3d> z_dirs;
   for(auto si : _samples)
@@ -710,17 +711,17 @@ bool ReachabilityDescription::getGMM( const std::vector<reachability_msgs::msg::
     zi.normalize();
     z_dirs.push_back(zi);
   }
-  s2::GMM gmm;
-  gmm.addPoints(z_dirs);
+  s2::KMedoids km;
+  km.addPoints(z_dirs);
 
-  bool res = gmm.EM(k, gs, ps);
+  bool res = km.kmedoids(k, u, indices);
 
-  for(int i = 0; i < gs.size(); ++i)
+  for(int i = 0; i < u.size(); ++i)
   {
      geometry_msgs::msg::Pose rs;
      Eigen::Isometry3d p; 
      p.setIdentity();
-     Eigen::Vector3d z = gs[i].u;
+     Eigen::Vector3d z = u[i];
      Eigen::Matrix3d rot;
      rot = Eigen::Quaterniond().setFromTwoVectors(Eigen::Vector3d(0,0,1), z);
      p.linear() = rot;

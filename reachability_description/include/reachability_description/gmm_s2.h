@@ -66,6 +66,12 @@ namespace s2 {
     unsigned int k;
   };
 
+  enum ConvergeState {
+    CONVERGED,
+    NON_CONVERGED,
+    IS_NAN
+  };
+
   /**
    * @class kmedoids
    */
@@ -82,7 +88,7 @@ namespace s2 {
 
       bool initializeParameters(const unsigned int &_k);
       void calculateAssignments();
-      bool calculateMedoids();
+      ConvergeState calculateMedoids();
 
       int num_iterations_;
       double medoids_thresh_;

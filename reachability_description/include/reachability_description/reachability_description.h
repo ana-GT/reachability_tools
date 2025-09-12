@@ -112,7 +112,7 @@ class ReachabilityDescription
                                           const std::shared_ptr<robot_unit::RobotCollisionObject> &_rco,
                                           const KDL::JntArray &_q_init);
 
-    bool getGMM( const std::vector<reachability_msgs::msg::ReachSample> &_samples, const double &_res, 
+    bool getReducedSamples( const std::vector<reachability_msgs::msg::ReachSample> &_samples, const double &_res, 
                  const double &_x, const double &_y, const double &_z, std::vector<geometry_msgs::msg::Pose> &_means);
 
     bool copyPartialGraph(const std::shared_ptr<ReachGraph> &_rg, const std::string &_chain_group, const bool &_debug = false);

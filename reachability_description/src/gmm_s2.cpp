@@ -101,7 +101,15 @@ namespace s2 {
    // Get exp
    Eigen::Vector3d y;   
    double u_norm = _u.norm();
-   y = Eigen::Vector3d( _u.x() * sin(u_norm)/u_norm, _u.y() * sin(u_norm)/u_norm, cos(u_norm) ); 
+   
+   // u: (0,0) when u (in TM) corresponds to x (in M), so return is x
+   double sin_norm;
+   if(u_norm == 0)
+     sin_norm = 0.0; // limit sin(theta)/theta when theta -> 0
+   else
+     sin_norm = sin(u_norm)/u_norm;
+   
+   y = Eigen::Vector3d( _u.x() * sin_norm, _u.y() * sin_norm, cos(u_norm) ); 
    y = Rp.inverse() * y;
    // Normalize for good measure   
    y.normalize();
@@ -309,7 +317,10 @@ namespace s2 {
     return true;
   }
 
-
+  /**
+   * @function KMedoids
+   * @brief Constructor
+   */
   KMedoids::KMedoids()
   {
     num_iterations_ = 100;
@@ -344,12 +355,16 @@ namespace s2 {
       // Calculate assignments
       calculateAssignments();
       // Recalculate means
-      if(calculateMedoids())
+      ConvergeState cs = calculateMedoids(); 
+      if( cs == CONVERGED)
       {
-        RCLCPP_INFO(rclcpp::get_logger("med"), "Converged at iteration %d", i);
         converged = true;
         break;
-      }      
+      } else if(cs == IS_NAN)
+      {
+      	converged = false;
+      	break;
+      }    
     }
 
     // Return assignments and means
@@ -358,9 +373,45 @@ namespace s2 {
       _u.clear();
       _indices.clear();
 
-      _u = u_;
+      // Check whether there are any unassigned kmedoids (likely to happen with small clusters)
+      std::vector<unsigned int> assign_size(k_, 0);
+      std::vector<int> assign_labels(k_, -1);
+      for(unsigned int k = 0; k < k_; ++k)
+      {
+      	for(auto x : x_)
+      	{
+      	   if(x.k == k)
+      	     assign_size[k]++;
+      	}
+      }
+
+      int label = 0;
+      for(int i = 0; i < assign_size.size(); ++i)
+      {
+      	if(assign_size[i] > 0)
+      	{
+      	  assign_labels[i] = label;
+      	  label++;
+      	}
+      }
+
+      //if(label != k_)
+      //   RCLCPP_WARN(rclcpp::get_logger("DEBUG!"), "K: %d label < max: %d", k_, label);
+    
+      // Store us
+      for(int i = 0; i < k_; ++i)
+      {
+         if(assign_size[i] > 0)
+           _u.push_back(u_[i]);
+      }
+
+      
       for(auto xi : x_)
-        _indices.push_back(xi.k);
+      {
+        if(assign_labels[xi.k] == -1)
+          RCLCPP_ERROR(rclcpp::get_logger("HORROR"), "Something bad happened with assignment");
+        _indices.push_back( (unsigned int) assign_labels[xi.k]);
+      }  
     }
 
     return converged;
@@ -395,7 +446,7 @@ namespace s2 {
   /**
    * @return true if converged, false otherwise
    */
-  bool KMedoids::calculateMedoids()
+  ConvergeState KMedoids::calculateMedoids()
   {
     std::vector<Eigen::Vector3d> u_old;
     u_old = u_;
@@ -405,30 +456,40 @@ namespace s2 {
       Eigen::Vector2d num(0,0);
       int den = 0;
       int index = 0;
-    	for(auto xi : x_)
-    	{    	   
-    	   if(xi.k == k)
-    	   {
-    	      num += Log(u_[k], xi.x);
-    	      den += 1;
-    	   }
-    	}
+      for(auto xi : x_)
+      {    	   
+    	 if(xi.k == k)
+    	 {
+    	    num += Log(u_[k], xi.x);
+    	    den += 1;
+    	 }
+      }
 
-      num /= (double) den;    	
-    	u_[k] = Exp(u_[k], num);
+      if(den > 0)
+      {
+       num /= (double) den;
+       Eigen::Vector3d u_old; u_old = u_[k];
+       u_[k] = Exp(u_[k], num);
+      }
     } // for k
-
-
+ 
+    
     // Check convergence
     double u_diff, sum_diff;
     sum_diff = 0;
+    
+    std::string str;
     for(int k = 0; k < k_; ++k)
     {
       u_diff = (u_[k] - u_old[k]).norm();
+
+      if(std::isnan(u_diff))
+        return IS_NAN;
+        
       sum_diff += u_diff;
     }
-    
-    return (sum_diff / (double)k_) < medoids_thresh_;
+
+    return (sum_diff / (double)k_) < medoids_thresh_ ? CONVERGED : NON_CONVERGED;
 
   }
 
