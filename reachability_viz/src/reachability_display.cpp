@@ -20,9 +20,11 @@ ReachabilityDisplay::ReachabilityDisplay()
   reach_properties_ = new rviz_common::properties::Property("Reachability", QVariant(),"", this);
   plane_distance_property_ = new rviz_common::properties::FloatProperty("offset", 0.0, "plane offset", reach_properties_, SLOT(updateSlice()), this);
   top_best_metric_property_ = new rviz_common::properties::IntProperty("top_best", 100, "% best", reach_properties_, SLOT(updateSlice()), this);  
-  plane_property_ = new rviz_common::properties::EnumProperty("Plane", QString("FULL"), "Plane to slice", reach_properties_, SLOT(updateSlice()), this);
-  orientation_property_ = new rviz_common::properties::Property("show_orientation", false, "show orientation", reach_properties_, SLOT(updateSlice()), this);
+  plane_property_ = new rviz_common::properties::EnumProperty("Plane", QString("FULL"), "Plane to slice", reach_properties_, SLOT(updateSlice()), this);  
   layer_property_ = new rviz_common::properties::BoolProperty("single_layer", false, "show a layer", reach_properties_, SLOT(updateSlice()), this);
+  orientation_property_ = new rviz_common::properties::Property("show_orientation", false, "show orientation", reach_properties_, SLOT(updateSlice()), this);
+  min_orientation_property_ = new rviz_common::properties::Property("minimal_orientation", false, "minimal orientation", reach_properties_, SLOT(updateSlice()), this);
+
 
   plane_distance_property_->setMin(-2.0);
   plane_distance_property_->setMax(2.0);
@@ -38,7 +40,6 @@ ReachabilityDisplay::ReachabilityDisplay()
   plane_property_->addOptionStd("YZ-", 5);
   plane_property_->addOptionStd("FULL", 6);  
 
-
 }
 
 void ReachabilityDisplay::onInitialize()
@@ -46,9 +47,15 @@ void ReachabilityDisplay::onInitialize()
   rviz_common::MessageFilterDisplay<reachability_msgs::msg::ReachGraphStamped>::onInitialize();
   point_cloud_common_->initialize(context_, scene_node_);
   marker_common_->initialize(context_, scene_node_);
+
+  auto node = context_->getRosNodeAbstraction().lock()->get_raw_node();
+  timer_ = node->create_wall_timer(
+      std::chrono::milliseconds(500),
+      std::bind(&ReachabilityDisplay::updateViz, this));
+
                   
   updateSlice();
-  
+    
 }
 
 void ReachabilityDisplay::updateSlice()
@@ -56,7 +63,8 @@ void ReachabilityDisplay::updateSlice()
   // Get orientation property
   show_orientation_ = orientation_property_->getValue().toBool();
   show_just_one_layer_ = layer_property_->getValue().toBool();
-  
+  minimal_orientation_ = min_orientation_property_->getValue().toBool();
+    
   // Get plane and distance	
   int plane_int = plane_property_->getOptionInt();
   std::string plane;
@@ -95,18 +103,17 @@ void ReachabilityDisplay::processMessage(const reachability_msgs::msg::ReachGrap
   last_msg_ = msg;
   this->reset();
 
-  sensor_msgs::msg::PointCloud::SharedPtr cloud;
-  cloud.reset(new sensor_msgs::msg::PointCloud());
-  cloud->header = msg->header;
 
-  visualization_msgs::msg::MarkerArray::SharedPtr marker;
-  marker.reset(new visualization_msgs::msg::MarkerArray());
+  last_cloud_.reset(new sensor_msgs::msg::PointCloud());
+  last_cloud_->header = msg->header;
 
-  RCLCPP_INFO(rclcpp::get_logger("reach_display"), "Num points received: %ld! cloud frame: %s", msg->data.points.size(), cloud->header.frame_id.c_str());
+  last_marker_.reset(new visualization_msgs::msg::MarkerArray());
+
+  RCLCPP_INFO(rclcpp::get_logger("reach_display"), "Num points received: %ld! cloud frame: %s", msg->data.points.size(), last_cloud_->header.frame_id.c_str());
 
   sensor_msgs::msg::ChannelFloat32 c;  
   c.name = "rgb";
-  cloud->channels.push_back(c);
+  last_cloud_->channels.push_back(c);
   float ratio, color;  
   
   // Get min and max number of samples
@@ -126,7 +133,7 @@ void ReachabilityDisplay::processMessage(const reachability_msgs::msg::ReachGrap
     auto po = pi.pose.position;
     geometry_msgs::msg::Point32 p;
     p.x = po.x; p.y = po.y; p.z = po.z;
- 
+    
     //ratio = (float) pi.samples.size() / (float) msg->data.params.num_voxel_samples;
     ratio = (float)(pi.samples.size() - min_samples) / (float)(max_samples - min_samples);
 
@@ -135,12 +142,18 @@ void ReachabilityDisplay::processMessage(const reachability_msgs::msg::ReachGrap
     // Only visualize the X% best
     if(ratio > (1.0 - top_best_)) {
       
-      cloud->points.push_back(p);
-      cloud->channels[0].values.push_back(color);
+      last_cloud_->points.push_back(p);
+      last_cloud_->channels[0].values.push_back(color);
+      
       if(show_orientation_)
       {
-         auto ms = generateArrowVizSample(pi, id);
-         marker->markers.insert(marker->markers.end(), ms.begin(), ms.end());
+         std::vector<visualization_msgs::msg::Marker> ms;
+         if(!minimal_orientation_)
+           ms = generateArrowVizSample(pi, id);
+         else
+           ms = generateArrowVizMinimal(pi, id);
+                  
+         last_marker_->markers.insert(last_marker_->markers.end(), ms.begin(), ms.end());
       }
 
     } // if ratio > top_best
@@ -148,12 +161,48 @@ void ReachabilityDisplay::processMessage(const reachability_msgs::msg::ReachGrap
   } // for pi msg.data.points
 
   
-  auto pc2 = rviz_default_plugins::convertPointCloudToPointCloud2(cloud);
+  auto pc2 = rviz_default_plugins::convertPointCloudToPointCloud2(last_cloud_);
   RCLCPP_INFO(rclcpp::get_logger("reach_display"), "Pc2: header: %s, height: %d width: %d data size: %ld", pc2->header.frame_id.c_str(), pc2->height, pc2->width, pc2->data.size());
   
+  viz();
+}
+
+/**
+ * @function update_viz
+ */
+void ReachabilityDisplay::updateViz() {
+
+  // Update world_state_node_ pose
+  if (last_cloud_)
+  {
+    Ogre::Vector3 pos;
+    Ogre::Quaternion quat;
+    
+      auto node = context_->getRosNodeAbstraction().lock()->get_raw_node();
+    context_->getFrameManager()->getTransform(last_cloud_->header.frame_id, node->now(),
+        pos, quat);
+    if( !last_pos_.positionEquals(pos) || !last_quat_.orientationEquals(quat) )
+    {  
+       viz();
+       last_pos_ = pos;
+       last_quat_ = quat;
+    }
+  }
+
+}
+
+void ReachabilityDisplay::viz() {
+
+  mux_.lock();
+
   // Visualize
-  point_cloud_common_->addMessage(cloud);    
-  marker_common_->addMessage(marker);
+  if(last_cloud_)
+    point_cloud_common_->addMessage(last_cloud_);    
+  
+  if(last_marker_)
+    marker_common_->addMessage(last_marker_);
+
+  mux_.unlock();
 }
 
 /**
@@ -183,6 +232,9 @@ bool ReachabilityDisplay::isAbovePlane(const geometry_msgs::msg::Point &_p, cons
     double dist = nx_*_p.x + ny_*_p.y + nz_*_p.z - plane_dist_;
     
     double thresh = 0.05;
+    
+    if(last_msg_)
+      thresh = last_msg_->data.params.resolution;
     
     if(_full)
       return (dist >= 0.0);
@@ -223,17 +275,57 @@ std::vector<visualization_msgs::msg::Marker> ReachabilityDisplay::generateArrowV
 
     Eigen::Quaterniond q(si.pose.orientation.w, si.pose.orientation.x, si.pose.orientation.y, si.pose.orientation.z);
     Eigen::Matrix3d m; m = q.toRotationMatrix();
-         
+    
     p2.x = si.pose.position.x;
     p2.y = si.pose.position.y;
     p2.z = si.pose.position.z;
-                          
+
     p1.x = p2.x - m.col(2).x()*l;
     p1.y = p2.y - m.col(2).y()*l;
     p1.z = p2.z - m.col(2).z()*l;
 
     visualization_msgs::msg::Marker mi;
     fillDefaultArrowMarker(mi, 0.4, 0.1, 0.4, 1.0);
+                                                      
+    mi.points.push_back(p1);
+    mi.points.push_back(p2);
+    mi.id = _start_id;
+    
+    _start_id++;
+
+    sample_markers.push_back(mi);
+  } // end for
+
+  return sample_markers;
+}
+
+/**
+ * @function generateArrowVizMinimal
+ */
+std::vector<visualization_msgs::msg::Marker> ReachabilityDisplay::generateArrowVizMinimal(const reachability_msgs::msg::ReachData &_pi, int &_start_id)
+{
+  std::vector<visualization_msgs::msg::Marker> sample_markers;
+
+  double l = 0.04;
+  
+  for(auto si : _pi.reduced_samples)
+  {
+    geometry_msgs::msg::Point p1, p2;
+
+    Eigen::Quaterniond q(si.orientation.w, si.orientation.x, si.orientation.y, si.orientation.z);
+    Eigen::Matrix3d m; m = q.toRotationMatrix();
+         
+    Eigen::Vector3d z_dir = m.col(2);     
+    p2.x = si.position.x;
+    p2.y = si.position.y;
+    p2.z = si.position.z;
+
+    p1.x = p2.x - z_dir.x()*l;
+    p1.y = p2.y - z_dir.y()*l;
+    p1.z = p2.z - z_dir.z()*l;
+
+    visualization_msgs::msg::Marker mi;
+    fillDefaultArrowMarker(mi, 0.9, 0.6, 0.1, 1.0);
                                                       
     mi.points.push_back(p1);
     mi.points.push_back(p2);
@@ -266,6 +358,7 @@ void ReachabilityDisplay::fillDefaultArrowMarker(visualization_msgs::msg::Marker
 
 void ReachabilityDisplay::update(float wall_dt, float ros_dt)
 {
+   point_cloud_common_->causeRetransform();
    point_cloud_common_->update(wall_dt, ros_dt);
    marker_common_->update(wall_dt, ros_dt);
 }

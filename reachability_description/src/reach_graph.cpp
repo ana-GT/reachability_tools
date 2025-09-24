@@ -140,9 +140,9 @@ bool ReachGraph::worldToVertex( const double &_x, const double &_y, const double
     return false;
 
   // floor effect expected: Round to minimum integer
-  _xi = floor( ( _x - params_.min_x ) / params_.resolution );
-  _yi = floor( ( _y - params_.min_y ) / params_.resolution );
-  _zi = floor( ( _z - params_.min_z ) / params_.resolution );
+  _xi = static_cast<int> ( floor( ( _x - params_.min_x ) / params_.resolution ) );
+  _yi = static_cast<int> ( floor( ( _y - params_.min_y ) / params_.resolution ) );
+  _zi = static_cast<int> ( floor( ( _z - params_.min_z ) / params_.resolution ) );
 
   return true;
 }
@@ -240,6 +240,30 @@ bool ReachGraph::setPlaneEquationCoefficients(const std::string &_plane,
   return true;
 }
 
+/**
+ * @function getMinMaxSamples
+ */
+void ReachGraph::getMinMaxSamples(unsigned int &_min_samples, unsigned int &_max_samples)
+{
+  reachability_msgs::msg::ReachData *v;
+  v = &points_[0];
+
+  _min_samples = 1000;
+  _max_samples = 0;
+  
+  for( int i = 0; i < num_points_; ++i ) {
+    if( v->state == reachability_msgs::msg::ReachData::FILLED ) {
+
+      auto num_samples = v->samples.size();
+      if( num_samples > _max_samples)
+        _max_samples = num_samples;
+      if( num_samples < _min_samples)
+        _min_samples = num_samples;    
+    }
+    v++;
+  }   
+     
+}
 
 /**
  * @function getPCD

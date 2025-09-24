@@ -1,6 +1,7 @@
 string group_name
 sensor_msgs/JointState init_joint_state
 geometry_msgs/PoseStamped goal_pose
+geometry_msgs/Pose grasp_offset
 ---
 bool success
 MobilePose[] solutions

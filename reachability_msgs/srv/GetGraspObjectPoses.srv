@@ -1,0 +1,7 @@
+string frame_id
+geometry_msgs/Pose object_pose 
+geometry_msgs/Pose grasp_offset
+---
+geometry_msgs/PoseStamped[] object_poses
+sensor_msgs/JointState[] joint_states
+bool success

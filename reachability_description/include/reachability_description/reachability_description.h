@@ -38,7 +38,7 @@ class ReachabilityDescription
     
     // Manipulate description
     bool generateDescription(const std::string &_chain_group);
-    bool loadDescription(const std::string &_filename);
+    bool loadDescription(const std::string &_chain_group);
 
     bool storeDescription(const std::string &_chain_group);
 

@@ -62,6 +62,7 @@ class ReachGraph {
 
     reachability_msgs::msg::ChainInfo getChainInfo() { return chain_info_; }
     reachability_msgs::msg::ReachParams getReachParams() { return params_; }
+    void getMinMaxSamples(unsigned int &_min_samples, unsigned int &_max_samples);
     
     inline double getResolution() const;
     inline int getNumPoints() const;

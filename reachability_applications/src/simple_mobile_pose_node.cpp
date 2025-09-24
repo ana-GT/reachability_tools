@@ -65,9 +65,9 @@ bool SimpleMobilePose::initialize()
 
     rd_->viewDescription(chain_group_);
 
-    std::vector<Eigen::Isometry3d> frames;
-    rd_->getReachGraph(chain_group_)->generateSamples(0.5, 0.8, 0.8, frames);
-
+    //std::vector<Eigen::Isometry3d> frames;
+    //rd_->getReachGraph(chain_group_)->generateSamples(0.5, 0.8, 0.8, frames);
+/*
     int id = 0;
     for(auto fi : frames)
     {
@@ -77,7 +77,7 @@ bool SimpleMobilePose::initialize()
       z = fi.linear().col(2);
       RCLCPP_INFO(this->get_logger(), "[%d] Frame quat: %f %f %f %f --- z: %f %f %f", id, q.x(), q.y(), q.z(), q.w(), z.x(), z.y(), z.z());
       id++;
-    }
+    }*/
     return true;
 }
 
@@ -137,7 +137,7 @@ bool SimpleMobilePose::getSamplesRatioTop( const std::vector<reachability_msgs::
 void SimpleMobilePose::handleSrv(const std::shared_ptr<reachability_msgs::srv::GetMobilePoses::Request> req,
                std::shared_ptr<reachability_msgs::srv::GetMobilePoses::Response> res)
 {
-  RCLCPP_INFO(logger, "!!!!!!Received service to query mobile poses for this pose");
+  RCLCPP_INFO(logger, "Received service to query mobile poses for this pose");
 
   // 0. Transform the pose to the root link frame
   geometry_msgs::msg::PoseStamped pose = req->goal_pose;
@@ -147,7 +147,7 @@ void SimpleMobilePose::handleSrv(const std::shared_ptr<reachability_msgs::srv::G
   std::vector<reachability_msgs::msg::ReachData> samples, best_samples;
 
   double threshold = 0.03;
-  double top_percent = 0.3;
+  double top_percent = 0.30;
   getSamplesAtZ(pose.pose, samples, threshold);
 
   getSamplesRatioTop(samples, top_percent, best_samples);
@@ -155,47 +155,75 @@ void SimpleMobilePose::handleSrv(const std::shared_ptr<reachability_msgs::srv::G
   RCLCPP_INFO(logger, "Number of samples with ratio > %f: %ld, out of %ld samples at height %f", 
         top_percent, best_samples.size(), samples.size(), pose.pose.position.z);
   
+    
   // 2. Identify the voxels that have a Z axis that has a rotation to the goal Z axis that is a yaw
-  Eigen::Isometry3d Tf_goal, Tf_sample;
+  Eigen::Isometry3d Tf_goal, Tf_sample, Tf_ee_offset, Tf_base, Tf_ee;
   tf2::fromMsg(pose.pose, Tf_goal);
-  
+    
+  tf2::fromMsg(req->grasp_offset, Tf_ee_offset);
+    
+  reachability_msgs::msg::ChainInfo ci_;
+  rd_->getChainInfo(chain_group_, ci_);
+    
+    
   std::vector<reachability_msgs::msg::ReachData> aligned_samples;
+  Eigen::Vector3d unit_z(0,0,1);
+  Eigen::Vector3d z_ee, z_sample;
+  double yaw;
+  double sy, cy;
+  double tx, ty;
+  Tf_sample.setIdentity();
+
+  Tf_ee = Tf_goal * Tf_ee_offset;
+  z_ee = Tf_ee.linear().col(2);
 
   for(auto si : best_samples)
   {
-     reachability_msgs::msg::ReachData ri;
-
      for(auto pi : si.samples)
      {
-      tf2::fromMsg(pi.pose, Tf_sample);
-      Eigen::Quaterniond q = Eigen::Quaterniond::FromTwoVectors(Tf_goal.linear().col(2), Tf_sample.linear().col(2));
-      Eigen::AngleAxisd aa(q);
-      Eigen::Vector3d unit_z(0,0,1);
+       tf2::fromMsg(pi.pose, Tf_sample);
+      
+       // Get the min angle between Tf_ee and sample
+       z_sample = Tf_sample.linear().col(2);
+       
+       Eigen::Quaterniond qes; qes.setFromTwoVectors(z_sample, z_ee);
+       Eigen::AngleAxisd aa(qes);
+       
+       double acos = unit_z.dot(aa.axis()); 
+       if( fabs(acos) > 0.9 && fabs(Tf_sample.translation()(1)) < 0.3 )
+       {
+          yaw = acos > 0.0? aa.angle() : -1*aa.angle();
+          sy = sin(yaw); cy = cos(yaw);
+          tx = Tf_ee.translation()(0) - (cy * Tf_sample.translation()(0) - sy * Tf_sample.translation()(1) );
+          ty = Tf_ee.translation()(1) - (sy * Tf_sample.translation()(0) + cy * Tf_sample.translation()(1) );          
+       
+              RCLCPP_INFO(this->get_logger(), "X: %f y: %f z: %f", pi.pose.position.x, pi.pose.position.y, pi.pose.position.z);
 
-      if(  fabs(unit_z.dot( aa.axis() )) > 0.86 ) // cos(30), cos(20) = 0.94
-      {
-        ri.samples.push_back(pi);
-      } 
+         RCLCPP_INFO(this->get_logger(), "Sample yaw pose: x, y with small z: : %.3f %.3f %.3f yaw: %.3f AXIS: %.3f %.3f %.3f",  Tf_base.translation()(0),  Tf_base.translation()(1),  Tf_base.translation()(2), aa.angle()*180.0/3.1416, aa.axis()(0), aa.axis()(1), aa.axis()(2));
+         
+           // Get start guess for IK
+           Eigen::Isometry3d Tf_init;
+           Tf_init.setIdentity();
+           Tf_init.translation() << tx, ty, 0;
+           Tf_init.linear() = Eigen::AngleAxisd( yaw, Eigen::Vector3d(0,0,1)).toRotationMatrix();
+
+           reachability_msgs::msg::MobilePose sol;
+           sol.arm_config = vectorToJointState(pi.best_config, ci_);
+           sol.base_pose.pose = tf2::toMsg(Tf_init); // Tf_init
+           sol.base_pose.header.frame_id = "world";
+           res->solutions.push_back(sol);
+       
+         } // if fabs
+
      } // for pi
 
-     if(!ri.samples.empty())
-     {
-       aligned_samples.push_back(ri);       
-       RCLCPP_INFO(this->get_logger(), "Samples aligned: %ld / %ld", ri.samples.size(), si.samples.size());
-     }
   }
 
-  // 3. From the ones above, order according to # of solutions per voxel (to withstand inaccuracy)
+
+
   
-  // 4. Per each voxel, get the mean orientation of the solutions
-  
-  // 5. Calculate the rotation + translation of the goal pose to the voxel (location + rotation)
-  
-  // 6. Apply the inverse transform to the base
-  
-  // 7. Calculate the Tf base
-  
-  // 8. Get K-means of the base locations
+  res->success = res->solutions.empty()? false : true;
+
   
   // 9. Use the means as seeds for the IK problem of base + arm. Use as start arm config seed the value from rd if required
   

@@ -135,18 +135,23 @@ bool ReachabilityDescription::generateDescription(const std::string &_chain_grou
   double x_min, y_min, z_min;
   double x_max, y_max, z_max;
   double x_mid, y_mid, z_mid;
-
+  
+  int half_num_x, half_num_y, half_num_z;
+  half_num_x = reach_graph_[_chain_group]->getNumX() / 2;
+  half_num_y = reach_graph_[_chain_group]->getNumY() / 2;
+  half_num_z = reach_graph_[_chain_group]->getNumZ() / 2;
+  
   x_min = reach_graph_[_chain_group]->getMinX();
   x_max = reach_graph_[_chain_group]->getMaxX();  
-  x_mid = ( x_min + x_max )*0.5;
+  x_mid = x_min + reach_graph_[_chain_group]->getResolution() * (double) half_num_x;
   
   y_min = reach_graph_[_chain_group]->getMinY();
   y_max = reach_graph_[_chain_group]->getMaxY();
-  y_mid = ( y_min + y_max )*0.5;
+  y_mid = y_min + reach_graph_[_chain_group]->getResolution() * (double) half_num_y;
   
   z_min = reach_graph_[_chain_group]->getMinZ();
   z_max = reach_graph_[_chain_group]->getMaxZ();
-  z_mid = ( z_min + z_max )*0.5;
+  z_mid = z_min + reach_graph_[_chain_group]->getResolution() * (double) half_num_z;
   
   std::map<std::string, KDL::JntArray > joint_configs;
   for(auto jc :  params_[_chain_group].ik_start_configs)
@@ -215,7 +220,7 @@ bool ReachabilityDescription::copyPartialGraph(const std::shared_ptr<ReachGraph>
 
     return false;
   }  
-  
+
   for(int i = 0; i < _rg->getNumPoints(); i++)
   {
      int xli, yli, zli, xi, yi, zi;
@@ -238,8 +243,9 @@ bool ReachabilityDescription::copyPartialGraph(const std::shared_ptr<ReachGraph>
 
     // Add metric
     reach_graph_[_chain_group]->calculateMetric(data, jac_solver_[_chain_group] );       
-
-     reach_graph_[_chain_group]->setState(xi, yi, zi, data);
+   
+    reach_graph_[_chain_group]->setState(xi, yi, zi, data);
+          
   }
   return true;
 }
@@ -521,9 +527,10 @@ std::shared_ptr<ReachGraph> ReachabilityDescription::reach_calc( const double &_
                                                   ik_solver, _ci, rco, 
                                                   q_init);
         reach_graph_i->setState(xi, yi, zi, rdata);
+        auto pos = rdata.pose.position;
 
         if(rdata.state == reachability_msgs::msg::ReachData::FILLED)
-          found_sols++;
+         found_sols++;
 
       } // for zi
     } // for yi
@@ -656,10 +663,12 @@ reachability_msgs::msg::ReachData ReachabilityDescription::calculateReachability
 
         rdata.samples.push_back(sample_i);
 
-        } // end selfCollide
+      } // end selfCollide
     }  // end if  ik_solver
 
   } // end frames_i
+  
+  
   
   // Get minimal representation
   std::vector<geometry_msgs::msg::Pose> means;
@@ -672,7 +681,7 @@ reachability_msgs::msg::ReachData ReachabilityDescription::calculateReachability
   return rdata;
 }
 
-/**
+/**	
  * @function getReducedSamples
  */
 bool ReachabilityDescription::getReducedSamples( const std::vector<reachability_msgs::msg::ReachSample> &_samples, 
@@ -714,7 +723,7 @@ bool ReachabilityDescription::getReducedSamples( const std::vector<reachability_
   s2::KMedoids km;
   km.addPoints(z_dirs);
 
-  bool res = km.kmedoids(k, u, indices);
+  bool result = km.kmedoids(k, u, indices);
 
   for(int i = 0; i < u.size(); ++i)
   {
@@ -725,11 +734,11 @@ bool ReachabilityDescription::getReducedSamples( const std::vector<reachability_
      Eigen::Matrix3d rot;
      rot = Eigen::Quaterniond().setFromTwoVectors(Eigen::Vector3d(0,0,1), z);
      p.linear() = rot;
-     p.translation() = Eigen::Vector3d(_x, _y, _z) - z*res*0.5;
+     p.translation() = Eigen::Vector3d(_x, _y, _z) - z*_res*0.5;
      rs = tf2::toMsg(p);
      _means.push_back(rs);
   }
-  return res;
+  return result;
 }
 
 
