@@ -63,39 +63,49 @@ void RachOptimizer::handleIKRequest(const std::shared_ptr<reachability_msgs::srv
 
     // Check if group exists
     auto group = req->group_name;
-    if(group_info_.find(group) == group_info_.end())
+    loadKinematics(group);
+
+    if(!req->mobile)
+      res->success = getConfiguration(group, req->goal_pose, req->init_joint_state, 
+                     res->solution);
+/*    else
+      res->success = getMobileConfiguration(group, req->goal_pose, req->init_joint_state, 
+                     res->solution, res->base_pose);  */  
+    return;
+}
+
+
+bool RachOptimizer::loadKinematics(const std::string &_group)
+{
+    if(group_info_.find(_group) == group_info_.end())
     {
        reachability_msgs::msg::ChainInfo ci;
-       if(!robot_entity_->getChainInfo(group, ci))
-        return;
+       if(!robot_entity_->getChainInfo(_group, ci))
+        return false;
 
        // Fill it up
-       robot_entity_->getKDLChain(ci.root_link, ci.tip_link, group_info_[group].chain);
+       robot_entity_->getKDLChain(ci.root_link, ci.tip_link, group_info_[_group].chain);
 
-       group_info_[group].fk_solver.reset(new KDL::ChainFkSolverPos_recursive(group_info_[group].chain));
+       group_info_[_group].fk_solver.reset(new KDL::ChainFkSolverPos_recursive(group_info_[_group].chain));
        
        std::vector<std::pair<double, double>> joint_limits;
     
        if(!robot_entity_->getJointLimits(ci.joint_names, joint_limits))
-        return;         
+        return false;
 
-
-       group_info_[group].root_link = ci.root_link;
-       group_info_[group].tip_link = ci.tip_link;
-       group_info_[group].joint_names = ci.joint_names;
+       group_info_[_group].root_link = ci.root_link;
+       group_info_[_group].tip_link = ci.tip_link;
+       group_info_[_group].joint_names = ci.joint_names;
        for(auto iter : joint_limits)
        {
-        group_info_[group].lower_bounds.push_back(iter.first);
-        group_info_[group].upper_bounds.push_back(iter.second);
+        group_info_[_group].lower_bounds.push_back(iter.first);
+        group_info_[_group].upper_bounds.push_back(iter.second);
        }
 
     }
-
-    res->success = getConfiguration(group, req->goal_pose, req->init_joint_state, 
-                   req->mobile, res->solution, res->base_pose);
-    return;
+    
+    return true;
 }
-
 
 /**
  * @function getTransform

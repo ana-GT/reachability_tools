@@ -36,7 +36,7 @@ def generate_launch_description():
 
     launch_args = [
         DeclareLaunchArgument(name="rviz", default_value="True"),
-        DeclareLaunchArgument(name="group", default_value="left_arm"),
+        DeclareLaunchArgument(name="group", default_value="right_arm"),
     ]
 
     rc_dir = get_package_share_directory("robots_config")

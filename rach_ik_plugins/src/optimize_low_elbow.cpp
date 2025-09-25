@@ -45,17 +45,9 @@ bool LowElbowOptimizer::init_() {
  * @function getConfiguration
  */
 bool LowElbowOptimizer::getConfiguration( const std::string &_group,
-                const geometry_msgs::msg::PoseStamped &_pose,
+                const geometry_msgs::msg::PoseStamped &_goal_pose,
                 const sensor_msgs::msg::JointState &_js,
-                const bool &_mobile,
-                sensor_msgs::msg::JointState &_sol,
-                geometry_msgs::msg::PoseStamped &_base_pose) {
-
-   if(_mobile)
-   {
-     RCLCPP_ERROR(this->get_logger(), "LowElbowOptimizer does not support mobile IK");
-     return false;
-   }
+                sensor_msgs::msg::JointState &_sol) {
 
   // Optional       
   int index = 0;
@@ -70,8 +62,8 @@ bool LowElbowOptimizer::getConfiguration( const std::string &_group,
   }
 
   Eigen::Isometry3d Tfx_root_ref, Tfx_ref, Tfx_root;
-  getTransform(group_info_[_group].root_link, _pose.header.frame_id, Tfx_root_ref);
-  tf2::fromMsg(_pose.pose, Tfx_ref);
+  getTransform(group_info_[_group].root_link, _goal_pose.header.frame_id, Tfx_root_ref);
+  tf2::fromMsg(_goal_pose.pose, Tfx_ref);
   Tfx_root = Tfx_root_ref * Tfx_ref;
 
   nlopt::opt opt(nlopt::LD_MMA, group_info_[_group].joint_names.size()); //LN_COBYLA
@@ -123,6 +115,20 @@ bool LowElbowOptimizer::getConfiguration( const std::string &_group,
   }
 
   return ret;
+}
+
+/**
+ * @function getMobileConfiguration
+ */
+bool LowElbowOptimizer::getMobileConfiguration( const std::string &_group,
+                const geometry_msgs::msg::PoseStamped &_goal_pose,
+                const sensor_msgs::msg::JointState &_init_js,
+                const geometry_msgs::msg::PoseStamped &_init_base_pose,
+                sensor_msgs::msg::JointState &_sol_arm_config,
+                geometry_msgs::msg::PoseStamped &_sol_base_pose)
+{
+     RCLCPP_ERROR(this->get_logger(), "LowElbowOptimizer does not support mobile IK");
+     return false;
 }
 
 } // namespace rach_ik_plugins

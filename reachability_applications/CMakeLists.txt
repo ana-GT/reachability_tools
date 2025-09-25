@@ -15,6 +15,7 @@ set(DEPS
   tf2_geometry_msgs
   reachability_msgs
   reachability_description
+  rach_ik
 )
 
 foreach(dependency IN ITEMS ${DEPS})

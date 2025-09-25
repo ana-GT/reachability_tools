@@ -287,7 +287,7 @@ bool calculateSolInVoxel(reachability_msgs::msg::ReachData _rdi,
       if(res > 0)
       {
         Eigen::Isometry3d Tbase, Texpected;
-        Tbase = getPlanarTransform(x[0], x[1], x[2]);
+        Tbase = reach_utils::getPlanarTransform(x[0], x[1], x[2]);
         
         KDL::JntArray q_init, q_out;
         q_init = vectorToJntArray(_rdi.samples[i].best_config);

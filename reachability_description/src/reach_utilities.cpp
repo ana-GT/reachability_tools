@@ -54,6 +54,68 @@ double manipValue2(const KDL::JntArray& _q, const std::shared_ptr<KDL::ChainJntT
 }
 
 
+/**
+ * @function getPlanarTransform
+ */
+Eigen::Isometry3d getPlanarTransform(const double &_x, const double &_y, const double &_yaw)
+{
+  Eigen::Isometry3d Tf;
+  Tf.setIdentity();
+  Tf.translation() = Eigen::Vector3d(_x, _y, 0);
+  
+  Eigen::Matrix3d rot; 
+  rot = Eigen::AngleAxisd(_yaw, Eigen::Vector3d::UnitZ());
+  Tf.linear() = rot;
+
+  return Tf;
+}
+
+/**
+ * @function isApproxPlanarTransform
+ */
+bool isApproxPlanarTransform(const Eigen::Isometry3d &_Tf_start, const Eigen::Isometry3d &_Tf_goal, 
+                             double &_tx, double &_ty, double &_yaw, const double &_thresh)
+{   
+  Eigen::Vector3d zdir_goal, zdir_start;  
+  Eigen::Vector3d unit_z(0,0,1);
+
+  double sy, cy;
+
+  zdir_start = _Tf_start.linear().col(2);
+  zdir_goal = _Tf_goal.linear().col(2);
+
+  // Projecting
+  Eigen::Vector3d pdir_start, pdir_goal;
+  
+  pdir_start = zdir_start - zdir_start.dot(unit_z) * unit_z;
+  pdir_goal = zdir_goal - zdir_goal.dot(unit_z) * unit_z;
+  Eigen::Quaterniond q_p; 
+  q_p.setFromTwoVectors(pdir_start, pdir_goal);
+  Eigen::AngleAxisd aa_p(q_p);
+  
+  // Yaw angle
+  // if angle is w.r.t. -Z, then is negative
+  _yaw = unit_z.dot(aa_p.axis()) > 0.9? aa_p.angle() : -1*aa_p.angle();
+  
+  // Rotate yaw
+  Eigen::Matrix3d r_p; r_p = Eigen::AngleAxisd(_yaw, unit_z).toRotationMatrix();
+  Eigen::Quaterniond q_est; q_est.setFromTwoVectors( r_p *zdir_start, zdir_goal);
+  Eigen::AngleAxisd aa_est(q_est);
+  
+  if( aa_est.angle() > _thresh )
+    return false;
+  
+       
+  auto t_start = _Tf_start.translation();
+  auto t_goal = _Tf_goal.translation(); 
+
+  sy = sin(_yaw); cy = cos(_yaw);
+  _tx = t_goal(0) - (cy * t_start(0) - sy * t_start(1) );
+  _ty = t_goal(1) - (sy * t_start(0) + cy * t_start(1) );          
+  return true;
+}
+
+
 } // namespace reach_utils
 
 
@@ -125,21 +187,6 @@ sensor_msgs::msg::JointState vectorToJointState(const std::vector<double> &_vec,
   return js;
 }
 
-/**
- * 
- */
-Eigen::Isometry3d getPlanarTransform(const double &_x, const double &_y, const double &_yaw)
-{
-  Eigen::Isometry3d Tf;
-  Tf.setIdentity();
-  Tf.translation() = Eigen::Vector3d(_x, _y, 0);
-  
-  Eigen::Matrix3d rot; 
-  rot = Eigen::AngleAxisd(_yaw, Eigen::Vector3d::UnitZ());
-  Tf.linear() = rot;
-
-  return Tf;
-}
 
 /**
  * @function jntArrayToMsg 

@@ -121,7 +121,8 @@ def generate_launch_description():
             robot_description,
             robot_description_semantic,
             {"chain_group_name": "right_arm"}, # right_arm
-            {"robot_name": "yumi"} 
+            {"robot_name": "yumi"},
+            {"plugin_name": "reachability_description::ReachGraphReuleaux"},                                
         ]
     ) 
 

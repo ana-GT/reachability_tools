@@ -1,7 +1,6 @@
 
 
-#include <reachability_description/gmm_s2.h>
-#include <rclcpp/rclcpp.hpp>
+#include <reachability_description/geom_s2.h>
 #include <rclcpp/rclcpp.hpp>
 
 namespace s2 {

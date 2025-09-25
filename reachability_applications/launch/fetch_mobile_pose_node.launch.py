@@ -42,7 +42,7 @@ def generate_launch_description():
 
 
     # markers
-    rtu_yaml = load_yaml("task_ui", "config/fetch_robot_task.yaml")
+    rtu_yaml = load_yaml("task_ui", "config/fetch_object_placement_task.yaml") # fetch_robot_Task.yaml
     rtu_params = {"robot_task_ui_params": rtu_yaml}
     
     task_marker = Node(
@@ -77,7 +77,9 @@ def generate_launch_description():
             {"robot_description_semantic" : srdf_config},
             {"plugin_name": "reachability_description::ReachGraphReuleaux"},
             {"chain_group_name": LaunchConfiguration("group_name")},
-            {"robot_name": "fetch"}
+            {"robot_name": "fetch"},
+            {"elbow_link": "elbow_flex_link"},
+            {"wrist_link": "wrist_roll_link"}
         ],
 
     )
