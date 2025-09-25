@@ -188,8 +188,12 @@ void SimpleMobilePose::handleSrv(const std::shared_ptr<reachability_msgs::srv::G
        
        Eigen::Quaterniond qes; qes.setFromTwoVectors(z_sample, z_ee);
        Eigen::AngleAxisd aa(qes);
+       Eigen::Matrix3d rot; rot = aa.toRotationMatrix();
+       Eigen::Vector3d ypr; ypr = rot.eulerAngles(2,1,0);
        
-       double acos = unit_z.dot(aa.axis()); 
+       double acos = unit_z.dot(aa.axis());
+       
+        
        if( fabs(acos) > 0.9 && fabs(Tf_sample.translation()(1)) < 0.3 )
        {
           yaw = acos > 0.0? aa.angle() : -1*aa.angle();
@@ -197,9 +201,10 @@ void SimpleMobilePose::handleSrv(const std::shared_ptr<reachability_msgs::srv::G
           tx = Tf_ee.translation()(0) - (cy * Tf_sample.translation()(0) - sy * Tf_sample.translation()(1) );
           ty = Tf_ee.translation()(1) - (sy * Tf_sample.translation()(0) + cy * Tf_sample.translation()(1) );          
        
-              RCLCPP_INFO(this->get_logger(), "X: %f y: %f z: %f", pi.pose.position.x, pi.pose.position.y, pi.pose.position.z);
+          double pir = 180.0/3.1416;
+          RCLCPP_INFO(this->get_logger(), "X: %f y: %f z: %f. YPR: %f %f %f", pi.pose.position.x, pi.pose.position.y, pi.pose.position.z, ypr(2)*pir, ypr(1)*pir, ypr(0)*pir);
 
-         RCLCPP_INFO(this->get_logger(), "Sample yaw pose: x, y with small z: : %.3f %.3f %.3f yaw: %.3f AXIS: %.3f %.3f %.3f",  Tf_base.translation()(0),  Tf_base.translation()(1),  Tf_base.translation()(2), aa.angle()*180.0/3.1416, aa.axis()(0), aa.axis()(1), aa.axis()(2));
+         RCLCPP_INFO(this->get_logger(), "Sample yaw pose: x, y with small z: : %.3f %.3f %.3f yaw: %.3f AXIS: %.3f %.3f %.3f",  Tf_base.translation()(0),  Tf_base.translation()(1),  Tf_base.translation()(2), aa.angle()*pir, aa.axis()(0), aa.axis()(1), aa.axis()(2));
          
            // Get start guess for IK
            Eigen::Isometry3d Tf_init;

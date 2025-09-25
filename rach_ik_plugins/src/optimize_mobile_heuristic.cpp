@@ -91,11 +91,20 @@ bool MobileHeuristicOptimizer::getConfiguration( const std::string &_group,
   std::vector<double> lb = group_info_[_group].lower_bounds;
   std::vector<double> ub = group_info_[_group].upper_bounds;
   
-  for(int i = 0; i < 3; ++i)
-  {
-    lb.push_back(-10.0);
-    ub.push_back(10.0);
-  }   
+  // Add x limit
+  double dx; double dangle;
+  dx = 0.3;
+  dangle = 45.0 * 3.1416/180.0;
+  lb.push_back(x0 - dx);
+  ub.push_back(x0 + dx);
+
+  lb.push_back(y0 - dx);
+  ub.push_back(y0 + dx);
+
+  lb.push_back(alpha0 - dangle);
+  ub.push_back(alpha0 + dangle);
+
+
   opt.set_lower_bounds(lb);
   opt.set_upper_bounds(ub);
 
