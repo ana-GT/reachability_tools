@@ -85,7 +85,7 @@ bool MobileHeuristicOptimizer::getMobileConfiguration( const std::string &_group
   getTransform(robot_entity_->getRootLinkName(), group_info_[_group].root_link, Tf_base_root); 
 
   int num_vars = group_info_[_group].joint_names.size() + 3;
-  nlopt::opt opt(nlopt::LD_MMA, num_vars); //LN_COBYLA
+  nlopt::opt opt(nlopt::LD_MMA, num_vars); //LD_MMA, LN_COBYLA
 
   // Limits
   std::vector<double> lb = group_info_[_group].lower_bounds;
@@ -103,14 +103,16 @@ bool MobileHeuristicOptimizer::getMobileConfiguration( const std::string &_group
 
   lb.push_back(alpha0 - dangle);
   ub.push_back(alpha0 + dangle);
-
-
+  
   opt.set_lower_bounds(lb);
   opt.set_upper_bounds(ub);
 
   Eigen::Isometry3d Tf_ref_ee;
   tf2::fromMsg(_goal_pose.pose, Tf_ref_ee);
 
+  auto p_ref_ee = Tf_ref_ee.translation();
+  RCLCPP_INFO(this->get_logger(), "*** Goal EE pose: %.3f %.3f %.3f", p_ref_ee(0), p_ref_ee(1), p_ref_ee(2));
+  
   // Fill ObjectiveData
   MobileObjectiveData od;
   od.fk_solver = group_info_[_group].fk_solver;
@@ -143,7 +145,14 @@ bool MobileHeuristicOptimizer::getMobileConfiguration( const std::string &_group
   bool ret;
 
   try {
-    nlopt::result result = opt.optimize(x, minf);
+    nlopt::result result = opt.optimize(x, minf);      
+    ret = (result >= 0);
+    RCLCPP_INFO(this->get_logger(), "*** Found minimum: %d", ret);
+    
+    if(ret)
+    {
+
+    _sol_arm_config = sensor_msgs::msg::JointState();
     _sol_arm_config.name = js.name;
     for(int i = 0; i < num_vars - 3; ++i)
       _sol_arm_config.position.push_back(x[i]);
@@ -151,10 +160,8 @@ bool MobileHeuristicOptimizer::getMobileConfiguration( const std::string &_group
     Eigen::Isometry3d Tfg;
     Tfg = getTfPlanar(x[num_vars-3], x[num_vars-2], x[num_vars-1]);  
     _sol_base_pose.pose = tf2::toMsg(Tfg);
-    _sol_base_pose.header.frame_id = _goal_pose.header.frame_id;
-      
-    ret = (result >= 0);
-    RCLCPP_INFO(this->get_logger(), "*** Found minimum: %d", ret);
+    _sol_base_pose.header.frame_id = _goal_pose.header.frame_id;                 
+    }
 
   } catch(std::exception &e) {
     RCLCPP_INFO(this->get_logger(), "nlopt failed: %s", e.what() );

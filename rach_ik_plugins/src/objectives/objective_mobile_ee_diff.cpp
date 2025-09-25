@@ -30,8 +30,10 @@ void calculateMobileEEDiff(const std::vector<double> &x,
     tf2::transformKDLToEigen(Tfx_root_ee, Tf_root_ee);
 
     // Full FK
-    Tf_ref_ee = getTfPlanar(x[n], x[n+1], x[n+2]) * od->Tf_base_root * Tf_root_ee;
- 
+    Eigen::Isometry3d Tf_ref_base;
+    Tf_ref_base = getTfPlanar(x[n], x[n+1], x[n+2]);
+    Tf_ref_ee = Tf_ref_base * od->Tf_base_root * Tf_root_ee;
+
     pos = Tf_ref_ee.translation();
     rot = Tf_ref_ee.linear();
     
@@ -45,7 +47,8 @@ double cost_mobile_ee_diff_function(const std::vector<double> &x, std::vector<do
   double dlin, drot;
   calculateMobileEEDiff(x, dlin, drot, objective_data);
 
-  double error = (dlin*dlin + drot*drot);
+  double factor = 0.1;
+  double error = (dlin*dlin + factor*drot*drot);
   // Grad
   std::vector<double> vals(x);
 
@@ -61,7 +64,7 @@ double cost_mobile_ee_diff_function(const std::vector<double> &x, std::vector<do
       vals[i] = original + jump;
 
       calculateMobileEEDiff(vals, dlin, drot, objective_data);
-      v1 = (dlin*dlin + drot*drot);
+      v1 = (dlin*dlin + factor * drot*drot);
 
       vals[i] = original;
       grad[i] = (v1 - error) / (2 * jump);

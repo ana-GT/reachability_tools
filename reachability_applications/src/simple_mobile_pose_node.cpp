@@ -162,13 +162,15 @@ void SimpleMobilePose::handleSrv(const std::shared_ptr<reachability_msgs::srv::G
       
   // 2. Identify the voxels that have a Z axis that has a rotation to the goal Z axis that is a yaw
   Eigen::Isometry3d Tf_goal, Tf_sample, Tf_ee_offset, Tf_base, Tf_ee;
-
+  
   tf2::fromMsg(req->goal_pose.pose, Tf_goal);    
   tf2::fromMsg(req->grasp_offset, Tf_ee_offset);
   Tf_ee = Tf_goal * Tf_ee_offset;
     
   reachability_msgs::msg::ChainInfo ci_;
   rd_->getChainInfo(chain_group_, ci_);
+  
+  std::string ref_frame = req->goal_pose.header.frame_id;
         
   std::vector<reachability_msgs::msg::ReachData> aligned_samples;
   double tx, ty, yaw;
@@ -207,33 +209,45 @@ void SimpleMobilePose::handleSrv(const std::shared_ptr<reachability_msgs::srv::G
   geometry_msgs::msg::PoseStamped msg_ee;
   
   msg_ee.pose = tf2::toMsg(Tf_ee);
-  msg_ee.header.frame_id = "world";
+  msg_ee.header.frame_id = ref_frame;
   geometry_msgs::msg::PoseStamped msg_base_init, msg_base_sol;
   
   if(km.kmedoids(k, u, indices))
   { 
      for(auto ui : u)
-     {
+     {     
         msg_base_init.pose = tf2::toMsg(ui);
         auto pi = ui.translation();
-        msg_base_init.header.frame_id = "world";
+        msg_base_init.header.frame_id = ref_frame;
 
         // Get start guess for IK 
-        ro_->getMobileConfiguration( chain_group_,
+        bool result = ro_->getMobileConfiguration( chain_group_,
                 msg_ee,
                 js_init, msg_base_init,
                 js_sol, msg_base_sol);
-        RCLCPP_INFO(logger,"Guess start: %f %f %f, ended up with: %f %f %f", pi(0), pi(1), pi(2), msg_base_sol.pose.position.x, msg_base_sol.pose.position.y, msg_base_sol.pose.position.z);
-        reachability_msgs::msg::MobilePose sol;
-        sol.arm_config = js_sol; //vectorToJointState(pi.best_config, ci_);
-        sol.base_pose = msg_base_sol;
-        res->solutions.push_back(sol);
+            
+        if(result)
+        {
+           reachability_msgs::msg::MobilePose sol;
+           sol.arm_config = js_sol; //vectorToJointState(pi.best_config, ci_);
+           sol.base_pose = msg_base_sol;
+           res->solutions.push_back(sol);
+           
+           RCLCPP_INFO(logger,"Guess start: %f %f %f, ended up with: %f %f %f",
+           msg_base_init.pose.position.x, msg_base_init.pose.position.y, msg_base_init.pose.position.z,            
+           msg_base_sol.pose.position.x, msg_base_sol.pose.position.y, msg_base_sol.pose.position.z);
+
+           
+         } else {
+           RCLCPP_ERROR(logger, "Did not converge");
+         }
+
      }  
      
   } // if
   
   // Publish all poses debug
-  poses_debug.header.frame_id = "world";
+  poses_debug.header.frame_id = ref_frame;
   poses_debug.header.stamp = this->now();
   pub_base_poses_->publish(poses_debug);
   
