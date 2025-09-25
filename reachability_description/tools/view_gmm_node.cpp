@@ -3,7 +3,7 @@
  */ 
 #include <reachability_description/reachability_description.h>
 #include <visualization_msgs/msg/marker_array.hpp>
-#include <reachability_description/gmm_s2.h>
+#include <reachability_description/geom_s2.h>
 
 double modulo(const double &_val, const double &_factor)
 {

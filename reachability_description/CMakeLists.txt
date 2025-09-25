@@ -47,7 +47,8 @@ add_library(${PROJECT_NAME} SHARED
             src/reach_graph.cpp 
             src/reach_serialization.cpp
             src/reach_utilities.cpp
-            src/gmm_s2.cpp)
+            src/geom_s2.cpp
+            src/geom_se2.cpp)
 target_link_libraries(${PROJECT_NAME} ${REACH_PARAM_LIB})
 ament_target_dependencies( ${PROJECT_NAME} ${DEPS})
 

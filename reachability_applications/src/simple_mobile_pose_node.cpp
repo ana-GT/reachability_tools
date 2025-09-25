@@ -9,8 +9,7 @@
 
 #include <reachability_description/reach_utilities.h>
 #include <reachability_description/reach_graph.h>
-
-using namespace std::chrono_literals;
+#include <reachability_description/geom_se2.h>
 
 const auto logger = rclcpp::get_logger("simple_reachability_query");
 
@@ -22,6 +21,10 @@ rclcpp::Node("simple_mobile_pose")
 {
     this->declare_parameter("chain_group_name", std::string(""));
     this->declare_parameter("robot_name", std::string(""));
+    
+    rclcpp::QoS qos_latch(1);
+    qos_latch.transient_local();
+    pub_base_poses_ = this->create_publisher<geometry_msgs::msg::PoseArray>("debug_base_poses", qos_latch);
 }
 
 /*s
@@ -65,19 +68,24 @@ bool SimpleMobilePose::initialize()
 
     rd_->viewDescription(chain_group_);
 
-    //std::vector<Eigen::Isometry3d> frames;
-    //rd_->getReachGraph(chain_group_)->generateSamples(0.5, 0.8, 0.8, frames);
-/*
-    int id = 0;
-    for(auto fi : frames)
+    // Initialize IK plugin with different costs
+    pluginlib::ClassLoader<RachOptimizer> rach_loader("rach_ik", "RachOptimizer");
+
+    try
     {
-      Eigen::Quaterniond q;
-      q = fi.linear();
-      Eigen::Vector3d z;
-      z = fi.linear().col(2);
-      RCLCPP_INFO(this->get_logger(), "[%d] Frame quat: %f %f %f %f --- z: %f %f %f", id, q.x(), q.y(), q.z(), q.w(), z.x(), z.y(), z.z());
-      id++;
-    }*/
+      ro_ = rach_loader.createSharedInstance("rach_ik_plugins::MobileHeuristicOptimizer");
+      if (!ro_->init())
+      	return false;
+    }
+    catch(pluginlib::PluginlibException& ex)
+    {
+      RCLCPP_ERROR(logger,
+      		"The plugin failed to load for some reason. Error: %s\n", 
+      		ex.what());
+      return false;
+    }
+    ro_->loadKinematics(chain_group_);
+
     return true;
 }
 
@@ -139,129 +147,103 @@ void SimpleMobilePose::handleSrv(const std::shared_ptr<reachability_msgs::srv::G
 {
   RCLCPP_INFO(logger, "Received service to query mobile poses for this pose");
 
-  // 0. Transform the pose to the root link frame
-  geometry_msgs::msg::PoseStamped pose = req->goal_pose;
-  
+  // 0. Transform the pose to the root link frame  
   // 1. Get all reachability voxels that are at Z level and that have a reachability > min
   // if not candidates, go on checking for less desirable reachabilities
   std::vector<reachability_msgs::msg::ReachData> samples, best_samples;
 
   double threshold = 0.03;
   double top_percent = 0.30;
-  getSamplesAtZ(pose.pose, samples, threshold);
-
+  getSamplesAtZ(req->goal_pose.pose, samples, threshold);
   getSamplesRatioTop(samples, top_percent, best_samples);
 
   RCLCPP_INFO(logger, "Number of samples with ratio > %f: %ld, out of %ld samples at height %f", 
-        top_percent, best_samples.size(), samples.size(), pose.pose.position.z);
-  
-    
+        top_percent, best_samples.size(), samples.size(), req->goal_pose.pose.position.z);
+      
   // 2. Identify the voxels that have a Z axis that has a rotation to the goal Z axis that is a yaw
   Eigen::Isometry3d Tf_goal, Tf_sample, Tf_ee_offset, Tf_base, Tf_ee;
-  tf2::fromMsg(pose.pose, Tf_goal);
-    
+
+  tf2::fromMsg(req->goal_pose.pose, Tf_goal);    
   tf2::fromMsg(req->grasp_offset, Tf_ee_offset);
+  Tf_ee = Tf_goal * Tf_ee_offset;
     
   reachability_msgs::msg::ChainInfo ci_;
   rd_->getChainInfo(chain_group_, ci_);
-    
-    
+        
   std::vector<reachability_msgs::msg::ReachData> aligned_samples;
-  Eigen::Vector3d unit_z(0,0,1);
-  Eigen::Vector3d z_ee, z_sample;
-  double yaw;
-  double sy, cy;
-  double tx, ty;
-  Tf_sample.setIdentity();
-
-  Tf_ee = Tf_goal * Tf_ee_offset;
-  z_ee = Tf_ee.linear().col(2);
-
+  double tx, ty, yaw;
+  double disc_thresh;
+  
+  disc_thresh = 30.0*3.1416/180.0;
+  
+  geometry_msgs::msg::PoseArray poses_debug;
+  std::vector<Eigen::Isometry3d> poses_tfs;
   for(auto si : best_samples)
   {
      for(auto pi : si.samples)
      {
        tf2::fromMsg(pi.pose, Tf_sample);
       
-       // Get the min angle between Tf_ee and sample
-       z_sample = Tf_sample.linear().col(2);
-       
-       Eigen::Quaterniond qes; qes.setFromTwoVectors(z_sample, z_ee);
-       Eigen::AngleAxisd aa(qes);
-       
-       double acos = unit_z.dot(aa.axis()); 
-       if( fabs(acos) > 0.9 && fabs(Tf_sample.translation()(1)) < 0.3 )
-       {
-          yaw = acos > 0.0? aa.angle() : -1*aa.angle();
-          sy = sin(yaw); cy = cos(yaw);
-          tx = Tf_ee.translation()(0) - (cy * Tf_sample.translation()(0) - sy * Tf_sample.translation()(1) );
-          ty = Tf_ee.translation()(1) - (sy * Tf_sample.translation()(0) + cy * Tf_sample.translation()(1) );          
-       
-              RCLCPP_INFO(this->get_logger(), "X: %f y: %f z: %f", pi.pose.position.x, pi.pose.position.y, pi.pose.position.z);
-
-         RCLCPP_INFO(this->get_logger(), "Sample yaw pose: x, y with small z: : %.3f %.3f %.3f yaw: %.3f AXIS: %.3f %.3f %.3f",  Tf_base.translation()(0),  Tf_base.translation()(1),  Tf_base.translation()(2), aa.angle()*180.0/3.1416, aa.axis()(0), aa.axis()(1), aa.axis()(2));
-         
-           // Get start guess for IK
-           Eigen::Isometry3d Tf_init;
-           Tf_init.setIdentity();
-           Tf_init.translation() << tx, ty, 0;
-           Tf_init.linear() = Eigen::AngleAxisd( yaw, Eigen::Vector3d(0,0,1)).toRotationMatrix();
-
-           reachability_msgs::msg::MobilePose sol;
-           sol.arm_config = vectorToJointState(pi.best_config, ci_);
-           sol.base_pose.pose = tf2::toMsg(Tf_init); // Tf_init
-           sol.base_pose.header.frame_id = "world";
-           res->solutions.push_back(sol);
-       
-         } // if fabs
+       if( reach_utils::isApproxPlanarTransform(Tf_sample, Tf_ee, tx, ty, yaw, disc_thresh))
+       {           
+           Eigen::Isometry3d Tf_base;
+           Tf_base = reach_utils::getPlanarTransform(tx, ty, yaw);           
+           poses_tfs.push_back(Tf_base);
+           poses_debug.poses.push_back(tf2::toMsg(Tf_base));
+       }
 
      } // for pi
-
-  }
-
-
-
+  } // for si
   
-  res->success = res->solutions.empty()? false : true;
+  // Calculate KMedoids
+  se2::KMedoids km;
+  km.addPoints(poses_tfs);
+  int k = 8;
+  std::vector<Eigen::Isometry3d> u;
+  std::vector<unsigned int> indices;
 
+  sensor_msgs::msg::JointState js_init;
+  sensor_msgs::msg::JointState js_sol;
+  geometry_msgs::msg::PoseStamped msg_ee;
   
-  // 9. Use the means as seeds for the IK problem of base + arm. Use as start arm config seed the value from rd if required
+  msg_ee.pose = tf2::toMsg(Tf_ee);
+  msg_ee.header.frame_id = "world";
+  geometry_msgs::msg::PoseStamped msg_base_init, msg_base_sol;
   
-  // 10. Return solutions
+  if(km.kmedoids(k, u, indices))
+  { 
+     for(auto ui : u)
+     {
+        msg_base_init.pose = tf2::toMsg(ui);
+        auto pi = ui.translation();
+        msg_base_init.header.frame_id = "world";
 
-  // Get X,Y,Z
-  /*
-  double x, y, z;
-  x = req->bbox.center.position.x;
-  y = req->bbox.center.position.y;
-  z = req->bbox.center.position.z;
+        // Get start guess for IK 
+        ro_->getMobileConfiguration( chain_group_,
+                msg_ee,
+                js_init, msg_base_init,
+                js_sol, msg_base_sol);
+        RCLCPP_INFO(logger,"Guess start: %f %f %f, ended up with: %f %f %f", pi(0), pi(1), pi(2), msg_base_sol.pose.position.x, msg_base_sol.pose.position.y, msg_base_sol.pose.position.z);
+        reachability_msgs::msg::MobilePose sol;
+        sol.arm_config = js_sol; //vectorToJointState(pi.best_config, ci_);
+        sol.base_pose = msg_base_sol;
+        res->solutions.push_back(sol);
+     }  
+     
+  } // if
   
-  // Fill the voxel for this location
-  reachability_msgs::msg::ReachData reach_data;
-  reach_data = rd_->calculateReachabilityPoint(x, y, z, chain_group_);
+  // Publish all poses debug
+  poses_debug.header.frame_id = "world";
+  poses_debug.header.stamp = this->now();
+  pub_base_poses_->publish(poses_debug);
+  
     
-  // Return the EE poses / joint states
-  reachability_msgs::msg::ChainInfo ci;
-  rd_->getChainInfo(chain_group_, ci);
-  
-  for(auto si : reach_data.samples)
-  {
-    geometry_msgs::msg::PoseStamped ps;
-    sensor_msgs::msg::JointState js;
-    
-    ps.pose = si.pose;
-    js = vectorToJointState(si.best_config, ci);
-    
-    res->ee_poses.push_back(ps);
-    res->joint_states.push_back(js);
-  }
-
-  res->success = res->ee_poses.empty()? false : true; */
+  res->success = res->solutions.empty()? false : true;  
 }
 
 
 /**
- * @function getTransform // (-0.062, 0.0, 0.291);
+ * @function getTransform
  */
 bool SimpleMobilePose::getTransform(const std::string &_source, const std::string &_target, Eigen::Isometry3d &_Tfx)
 {

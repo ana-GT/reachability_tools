@@ -4,12 +4,15 @@
 #include <tf2_eigen_kdl/tf2_eigen_kdl.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <geometry_msgs/msg/pose_array.hpp>
 #include <tf2_ros/transform_listener.h>
 
 #include <reachability_msgs/srv/get_mobile_poses.hpp>
-
 #include <reachability_description/reachability_description.h>
 
+// IK
+#include <pluginlib/class_loader.hpp>
+#include <rach_ik/optimize.h>
 
 /**
  * @class SimpleMobilePose
@@ -52,5 +55,10 @@ class SimpleMobilePose : public rclcpp::Node
    std::shared_ptr<reachability_description::ReachabilityDescription> rd_;
    reachability_msgs::msg::ReachGraph rg_;
    int min_samples_, max_samples_;
+   
+   // IK
+   std::shared_ptr<RachOptimizer> ro_;
 
+   // Debug
+   rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr pub_base_poses_;
 };

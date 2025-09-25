@@ -20,7 +20,6 @@ std::vector<double> jntArrayToVector(const KDL::JntArray &_js);
 KDL::JntArray vectorToJntArray(const std::vector<double> &_vec);
 sensor_msgs::msg::JointState vectorToJointState(const std::vector<double> &_vec, 
                                                 const reachability_msgs::msg::ChainInfo &_ci);
-Eigen::Isometry3d getPlanarTransform(const double &_x, const double &_y, const double &_yaw);
 
 sensor_msgs::msg::JointState jntArrayToMsg(const KDL::JntArray &_q, 
                                            const reachability_msgs::msg::ChainInfo &_ci);
@@ -38,4 +37,8 @@ bool getMinMaxSamples(const reachability_msgs::msg::ReachGraph &_rg,
 double manipValue1(const KDL::JntArray& _q, const std::shared_ptr<KDL::ChainJntToJacSolver> &_jac_solver);
 double manipValue2(const KDL::JntArray& _q, const std::shared_ptr<KDL::ChainJntToJacSolver> &_jac_solver);
 
+Eigen::Isometry3d getPlanarTransform(const double &_x, const double &_y, const double &_yaw);
+
+bool isApproxPlanarTransform(const Eigen::Isometry3d &_Tf_start, const Eigen::Isometry3d &_Tf_goal, 
+                             double &_tx, double &_ty, double &_yaw, const double &_thresh);
 }

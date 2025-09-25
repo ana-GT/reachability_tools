@@ -1,8 +1,8 @@
 import os
 import yaml
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
-from launch.substitutions import Command, FindExecutable, LaunchConfiguration
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
 from launch.conditions import IfCondition, UnlessCondition
 from launch_ros.actions import Node
 from launch.actions import ExecuteProcess
@@ -24,6 +24,20 @@ def load_yaml(package_name, file_path):
 ###########################################
 def generate_launch_description():
 
+    launch_args = [
+        DeclareLaunchArgument(name="rviz", default_value="True"),
+    ]
+    rc_dir = get_package_share_directory("robots_config")
+
+    # Launch robot
+    robot_launch = IncludeLaunchDescription(
+            PathJoinSubstitution([rc_dir, 'launch/panda_husky/panda_husky_config.launch.py']),
+            launch_arguments={
+              'rviz': LaunchConfiguration('rviz')
+            }.items(),
+    ) 
+
+    # URDF/SRDF
     robot_description_config = xacro.process_file(
         os.path.join(
             get_package_share_directory("robots_config"),
@@ -50,57 +64,7 @@ def generate_launch_description():
     )
     reachability_params = {"reachability_params": reachability_yaml}
 
-
-    rviz_base = os.path.join(get_package_share_directory("robots_config"), "rviz")
-    rviz_full_config = os.path.join(rviz_base, "panda_husky.rviz")
-    rviz_node = Node(
-        package="rviz2",
-        executable="rviz2",
-        name="rviz2",
-        output="log",
-        arguments=["-d", rviz_full_config],
-        parameters=[]
-    )
-
-    # Base TF
-    move_base_tf = Node(
-        package="reachability_description",
-        executable="app_simulate_robot_base_motion",
-        name="app_simulate_robot_base_motion",
-        output="both",
-        #arguments=["0.0", "0.0", "0.0", "0.0", "0.0", "0.0", "world", "base_link"],
-        parameters=[
-            {"ref_frame": "world"},
-            {"robot_frame": "base_link"}
-        ]
-    )
-
-    # Publish TF
-    robot_state_publisher = Node(
-        package="robot_state_publisher",
-        executable="robot_state_publisher",
-        name="robot_state_publisher",
-        output="both",
-        parameters=[robot_description],
-    )
-    
-    panda_zero_joints = {
-      "zeros.panda_joint4": -1.5708,
-      "zeros.panda_joint6": 1.5708 	
-    }
-
-    # Joint State publisher
-    joint_publisher = Node(
-        package='joint_state_publisher',
-        executable='joint_state_publisher',
-        name='joint_state_publisher',
-        output='screen',
-        parameters=[
-            panda_zero_joints,
-            {"source_list": ["joint_state_command"]}
-        ])
-
-    # Fetch
+    # Load reachability node
     load_reach = Node(
         package='reachability_description',
         executable='load_reachability_node',
@@ -117,12 +81,6 @@ def generate_launch_description():
 
 
     return LaunchDescription(
-        [
-            move_base_tf,
-            rviz_node,
-            robot_state_publisher,
-            joint_publisher,
-            load_reach
-        ]
-
+        launch_args + 
+        [robot_launch, load_reach]
     )

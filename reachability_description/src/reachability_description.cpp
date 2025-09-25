@@ -9,7 +9,7 @@
 #include <kdl/chainjnttojacsolver.hpp>
 
 #include <reachability_description/reach_utilities.h>
-#include <reachability_description/gmm_s2.h>
+#include <reachability_description/geom_s2.h>
 
 namespace reachability_description
 {
