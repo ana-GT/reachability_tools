@@ -49,6 +49,7 @@ add_library(optimize_mobile_heuristic SHARED
   src/optimize_mobile_heuristic.cpp
   src/objectives/objective_mobile_ee_diff.cpp
   src/constraints/constraint_elbow_wrist.cpp
+  src/constraints/constraint_wrist_front.cpp
 )
 ament_target_dependencies(optimize_mobile_heuristic ${DEPS})
 target_link_libraries(optimize_mobile_heuristic ${NLOPT_LIBRARIES})

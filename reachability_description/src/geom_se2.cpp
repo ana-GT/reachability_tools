@@ -65,15 +65,11 @@ namespace se2 {
   /**
    * @function u = Log_x(y), x in M, y in M, u in TM 
    */
-  Eigen::Vector3d Log(const Eigen::Isometry3d &_x, const Eigen::Isometry3d &_y)
+  Eigen::VectorXd Log(const Eigen::Isometry3d &_x, const Eigen::Isometry3d &_y)
   {
-  
-     Eigen::Vector3d u;
-     Eigen::AngleAxisd aa(_y.linear());
-     double yaw;
-     yaw = aa.axis().dot(Eigen::Vector3d::UnitZ()) > 0.9? aa.angle() : -1 * aa.angle();
-       
-     u << _y.translation()(0), _y.translation()(1), yaw; 
+     Eigen::VectorXd u(5);
+     Eigen::Vector3d xdir; xdir = _y.linear().col(0);  
+     u << _y.translation()(0), _y.translation()(1), xdir(0), xdir(1), xdir(2); 
      
      return u;
   }
@@ -82,13 +78,20 @@ namespace se2 {
   /** 
    * @brief y = Exp_x(u) x in M, u in TM, return value y in M 
    */
-  Eigen::Isometry3d Exp(Eigen::Isometry3d &_x, Eigen::Vector3d &_u)
+  Eigen::Isometry3d Exp(Eigen::Isometry3d &_x, Eigen::VectorXd &_u)
   {
   
    Eigen::Isometry3d y;
    y.setIdentity();
    y.translation() << _u(0), _u(1), 0;
-   y.linear() = Eigen::AngleAxisd(_u(2), Eigen::Vector3d::UnitZ()).toRotationMatrix();
+   
+   Eigen::Quaterniond q; 
+   Eigen::Vector3d xdir(_u(2), _u(3), _u(4));
+   xdir.normalize();
+   
+   q.setFromTwoVectors(Eigen::Vector3d::UnitX(), xdir);
+   
+   y.linear() = Eigen::AngleAxisd(q).toRotationMatrix();
   
    return y;
   }
@@ -369,9 +372,6 @@ namespace se2 {
       	  label++;
       	}
       }
-
-      //if(label != k_)
-      //   RCLCPP_WARN(rclcpp::get_logger("DEBUG!"), "K: %d label < max: %d", k_, label);
     
       // Store us
       for(int i = 0; i < k_; ++i)
@@ -428,7 +428,8 @@ namespace se2 {
 
     for(int k = 0; k < k_; ++k)
     {
-      Eigen::Vector3d num(0, 0, 0);
+      Eigen::VectorXd num(5);
+      num << 0, 0, 0, 0, 0;
       int den = 0;
       int index = 0;
       for(auto xi : x_)

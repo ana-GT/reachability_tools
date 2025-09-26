@@ -24,6 +24,7 @@
   <depend>pkg-config</depend>
   <depend>robot_unit</depend>
   <depend>pcl_conversions</depend>
+  <depend>visualization_msgs</depend>
   <depend>reachability_msgs</depend>
   <depend>robot_sim_msgs</depend>
   <depend>generate_parameter_library</depend>

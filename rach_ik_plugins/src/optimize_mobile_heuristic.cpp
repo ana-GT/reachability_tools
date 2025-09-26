@@ -4,6 +4,7 @@
 #include <rach_ik_plugins/optimize_mobile_heuristic.h>
 #include <rach_ik_plugins/objectives/objective_mobile_ee_diff.h>
 #include <rach_ik_plugins/constraints/constraint_elbow_wrist.h>
+#include <rach_ik_plugins/constraints/constraint_wrist_front.h>
 
 #include <nlopt.hpp>
 
@@ -122,12 +123,13 @@ bool MobileHeuristicOptimizer::getMobileConfiguration( const std::string &_group
   opt.set_min_objective(cost_mobile_ee_diff_function, &od);
 
   // Fill constraint data
-  ConstraintData cd;
+  constraint_wrist::ConstraintData cd;
   cd.fk_solver = group_info_[_group].fk_solver; 
   cd.elbow_index = group_info_[_group].elbow_link.second;
   cd.wrist_index = group_info_[_group].wrist_link.second;
 
   //opt.add_inequality_constraint(constraint_elbow_down, &cd, 1e-8);
+  //opt.add_inequality_constraint(constraint_wrist::constraint_wrist_front, &cd, 1e-8);
 
   opt.set_xtol_rel(1e-4);
 
@@ -143,15 +145,18 @@ bool MobileHeuristicOptimizer::getMobileConfiguration( const std::string &_group
   
   double minf;
   bool ret;
+     RCLCPP_INFO(this->get_logger(), "X bef: %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f", x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10]);
 
   try {
     nlopt::result result = opt.optimize(x, minf);      
     ret = (result >= 0);
-    RCLCPP_INFO(this->get_logger(), "*** Found minimum: %d", ret);
+    // 1: SUCCESS, 2: STOPVAL_REACHED, 3: FTOL_REACHED, 
+    // 4: XTOL_REACHED, 5: MAXEVAL_REACHED, 6: MAXTIME_REACHED
+    RCLCPP_INFO(this->get_logger(), "*** Found minimum: %d. result: %d", ret, result);
     
     if(ret)
     {
-
+     RCLCPP_INFO(this->get_logger(), "X aft: %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f %.3f", x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10]);
     _sol_arm_config = sensor_msgs::msg::JointState();
     _sol_arm_config.name = js.name;
     for(int i = 0; i < num_vars - 3; ++i)

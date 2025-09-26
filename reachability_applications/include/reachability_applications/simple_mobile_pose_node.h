@@ -5,6 +5,7 @@
 #include <tf2_eigen/tf2_eigen.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <geometry_msgs/msg/pose_array.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 #include <tf2_ros/transform_listener.h>
 
 #include <reachability_msgs/srv/get_mobile_poses.hpp>
@@ -28,6 +29,12 @@ class SimpleMobilePose : public rclcpp::Node
  protected:
    bool getTransform(const std::string &_source, const std::string &_target, Eigen::Isometry3d &_Tfx);
    
+   void publishMedoids(const std::vector<Eigen::Isometry3d> &_poses, 
+                    const std::vector<Eigen::Isometry3d> &_u, 
+                    const std::vector<unsigned int> &_indices,
+                    const std::string &_ref_frame);
+   
+   
    void handleSrv(const std::shared_ptr<reachability_msgs::srv::GetMobilePoses::Request> req,
                   std::shared_ptr<reachability_msgs::srv::GetMobilePoses::Response> res);
  
@@ -42,6 +49,11 @@ class SimpleMobilePose : public rclcpp::Node
    bool getSamplesRatioTop( const std::vector<reachability_msgs::msg::ReachData> &_samples, 
           const double &_top_percent,   
           std::vector<reachability_msgs::msg::ReachData> &_best_samples);
+
+  unsigned int getClosestIndex(const Eigen::Isometry3d &_u, 
+                             const int &_index, 
+                             const std::vector<Eigen::Isometry3d> &_tfs, 
+                             const std::vector<unsigned int> &_indices);
 
    // Read parameters
    std::string chain_group_;
@@ -60,5 +72,6 @@ class SimpleMobilePose : public rclcpp::Node
    std::shared_ptr<RachOptimizer> ro_;
 
    // Debug
-   rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr pub_base_poses_;
+   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub_debug_markers_;
 };
+

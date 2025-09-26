@@ -3,6 +3,12 @@
 
 namespace reach_utils {
 
+double random(double _min, double _max) 
+{
+  double r = static_cast<double>(rand()) / RAND_MAX;
+  return _min + r*(_max - _min);
+}
+
 bool getMinMaxSamples(const reachability_msgs::msg::ReachGraph &_rg,
                       int &_min_samples, int &_max_samples)
 {
@@ -114,6 +120,54 @@ bool isApproxPlanarTransform(const Eigen::Isometry3d &_Tf_start, const Eigen::Is
   _ty = t_goal(1) - (sy * t_start(0) + cy * t_start(1) );          
   return true;
 }
+
+/**
+ * @function drawArrow
+ */
+visualization_msgs::msg::Marker drawArrow(const Eigen::Isometry3d &_Tf,
+					  const std::string &_ref_frame,
+					  const Eigen::Vector4d &_color,
+					  const double &_length, const double &_diameter,
+                                          const int &_id )
+  {
+    visualization_msgs::msg::Marker marker;
+    marker.header.frame_id = _ref_frame;
+    //marker.header.stamp = this->now();
+
+    marker.ns = "";
+    marker.id = _id;
+
+    marker.type = visualization_msgs::msg::Marker::ARROW;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+
+    // Arrow end
+    auto p = _Tf.translation();
+    auto xdir = _Tf.linear().col(0);
+    auto pxdir = p + xdir*_length;
+    
+    marker.pose.orientation.w = 1.0;
+
+    geometry_msgs::msg::Point p1, p2;
+    p1.x = p(0); p1.y = p(1); p1.z = p(2);
+    p2.x = pxdir(0); p2.y = pxdir(1); p2.z = pxdir(2);
+    
+    marker.points.push_back(p1);
+    marker.points.push_back(p2);
+
+    marker.scale.x = _diameter; // shaft diameter
+    marker.scale.y = _diameter*2; // head diameter
+    marker.scale.z = _length*0.2; // head length (if specified)
+
+    // Set the color -- be sure to set alpha to something non-zero!
+    marker.color.r = _color(0);
+    marker.color.g = _color(1);
+    marker.color.b = _color(2);
+    marker.color.a = _color(3);
+
+    marker.lifetime = rclcpp::Duration(0, 0);
+
+    return marker;
+  }
 
 
 } // namespace reach_utils

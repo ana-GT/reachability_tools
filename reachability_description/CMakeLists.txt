@@ -17,6 +17,7 @@ set(DEPS
   tf2_eigen
   tf2_eigen_kdl
   tf2_kdl
+  visualization_msgs
   reachability_msgs
   robot_sim_msgs
   generate_parameter_library

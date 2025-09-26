@@ -6,8 +6,8 @@
 
 namespace se2 {
 
-  Eigen::Vector3d Log(const Eigen::Isometry3d &_x, const Eigen::Isometry3d &_y);
-  Eigen::Isometry3d Exp(Eigen::Isometry3d &_x, Eigen::Vector3d &_u);
+  Eigen::VectorXd Log(const Eigen::Isometry3d &_x, const Eigen::Isometry3d &_y);
+  Eigen::Isometry3d Exp(Eigen::Isometry3d &_x, Eigen::VectorXd &_u);
   double d(const Eigen::Isometry3d &_x, const Eigen::Isometry3d &_y);
 
 //  Eigen::Vector2d mean(const std::vector<Eigen::Vector3d> &_xs, 

@@ -24,7 +24,7 @@ rclcpp::Node("simple_mobile_pose")
     
     rclcpp::QoS qos_latch(1);
     qos_latch.transient_local();
-    pub_base_poses_ = this->create_publisher<geometry_msgs::msg::PoseArray>("debug_base_poses", qos_latch);
+    pub_debug_markers_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("debug_base_poses", qos_latch);
 }
 
 /*s
@@ -155,8 +155,17 @@ void SimpleMobilePose::handleSrv(const std::shared_ptr<reachability_msgs::srv::G
   double threshold = 0.03;
   double top_percent = 0.30;
   getSamplesAtZ(req->goal_pose.pose, samples, threshold);
-  getSamplesRatioTop(samples, top_percent, best_samples);
-
+  
+  bool empty;
+  do
+  {
+    empty = getSamplesRatioTop(samples, top_percent, best_samples)? false : true;
+    top_percent += 0.10;
+    
+    if(top_percent > 1.0)
+      break;
+  } while(empty);
+  
   RCLCPP_INFO(logger, "Number of samples with ratio > %f: %ld, out of %ld samples at height %f", 
         top_percent, best_samples.size(), samples.size(), req->goal_pose.pose.position.z);
       
@@ -173,13 +182,14 @@ void SimpleMobilePose::handleSrv(const std::shared_ptr<reachability_msgs::srv::G
   std::string ref_frame = req->goal_pose.header.frame_id;
         
   std::vector<reachability_msgs::msg::ReachData> aligned_samples;
+  std::vector<Eigen::Isometry3d> poses_tfs;
+  std::vector<std::vector<double>> js_configs;
+  
   double tx, ty, yaw;
   double disc_thresh;
   
   disc_thresh = 30.0*3.1416/180.0;
   
-  geometry_msgs::msg::PoseArray poses_debug;
-  std::vector<Eigen::Isometry3d> poses_tfs;
   for(auto si : best_samples)
   {
      for(auto pi : si.samples)
@@ -189,9 +199,9 @@ void SimpleMobilePose::handleSrv(const std::shared_ptr<reachability_msgs::srv::G
        if( reach_utils::isApproxPlanarTransform(Tf_sample, Tf_ee, tx, ty, yaw, disc_thresh))
        {           
            Eigen::Isometry3d Tf_base;
-           Tf_base = reach_utils::getPlanarTransform(tx, ty, yaw);           
+           Tf_base = reach_utils::getPlanarTransform(tx, ty, yaw); 
            poses_tfs.push_back(Tf_base);
-           poses_debug.poses.push_back(tf2::toMsg(Tf_base));
+           js_configs.push_back(pi.best_config);
        }
 
      } // for pi
@@ -211,13 +221,16 @@ void SimpleMobilePose::handleSrv(const std::shared_ptr<reachability_msgs::srv::G
   msg_ee.pose = tf2::toMsg(Tf_ee);
   msg_ee.header.frame_id = ref_frame;
   geometry_msgs::msg::PoseStamped msg_base_init, msg_base_sol;
-  
+
   if(km.kmedoids(k, u, indices))
   { 
-     for(auto ui : u)
+     publishMedoids(poses_tfs, u, indices, ref_frame);
+
+     for(int i = 0; i < u.size(); ++i)
      {     
-        msg_base_init.pose = tf2::toMsg(ui);
-        auto pi = ui.translation();
+        js_init = vectorToJointState(js_configs[ getClosestIndex(u[i], i, poses_tfs, indices) ], ci_);
+        
+        msg_base_init.pose = tf2::toMsg(u[i]);
         msg_base_init.header.frame_id = ref_frame;
 
         // Get start guess for IK 
@@ -229,7 +242,7 @@ void SimpleMobilePose::handleSrv(const std::shared_ptr<reachability_msgs::srv::G
         if(result)
         {
            reachability_msgs::msg::MobilePose sol;
-           sol.arm_config = js_sol; //vectorToJointState(pi.best_config, ci_);
+           sol.arm_config = js_sol; 
            sol.base_pose = msg_base_sol;
            res->solutions.push_back(sol);
            
@@ -245,16 +258,74 @@ void SimpleMobilePose::handleSrv(const std::shared_ptr<reachability_msgs::srv::G
      }  
      
   } // if
-  
-  // Publish all poses debug
-  poses_debug.header.frame_id = ref_frame;
-  poses_debug.header.stamp = this->now();
-  pub_base_poses_->publish(poses_debug);
-  
-    
+      
   res->success = res->solutions.empty()? false : true;  
 }
 
+/** 
+ * @function getClosestIndex
+ */
+unsigned int SimpleMobilePose::getClosestIndex(const Eigen::Isometry3d &_u, 
+                             const int &_index, 
+                             const std::vector<Eigen::Isometry3d> &_tfs, 
+                             const std::vector<unsigned int> &_indices)
+{
+ double d, d_max;
+ unsigned int index_max;
+
+ d_max = -1.0;
+ for(unsigned int i = 0; i < _indices.size(); ++i)
+ {   
+   if(_indices[i] != _index)
+     continue;
+     
+   d = se2::d(_tfs[i], _u);
+   if( d > d_max )
+   {
+     d_max = d;
+     index_max = i;
+   }  
+ }
+
+ return index_max;
+}
+
+/**
+ * @function publishMedoids
+ */
+void SimpleMobilePose::publishMedoids(const std::vector<Eigen::Isometry3d> &_poses, 
+                    const std::vector<Eigen::Isometry3d> &_u, 
+                    const std::vector<unsigned int> &_indices,
+                    const std::string &_ref_frame)
+{
+  visualization_msgs::msg::MarkerArray markers;
+
+  // Generate colors
+  int k = _u.size();
+  std::vector<Eigen::Vector4d> colors;
+  double a = 1.0;
+  
+  for(int i = 0; i < k; ++i)
+  {
+     Eigen::Vector4d color_i(reach_utils::random(0.0, 1.0), reach_utils::random(0.0, 1.0), reach_utils::random(0.0, 1.0), a);
+     colors.push_back(color_i); 
+  }  
+ 
+  int id = 0;
+  for(int i = 0; i < _indices.size(); ++i)
+  {
+    markers.markers.push_back( reach_utils::drawArrow( _poses[i], _ref_frame, colors[_indices[i]], 0.03, 0.004, id ) );
+    id++;
+  }
+  
+  for(int i = 0; i < k; ++i)
+  {
+     markers.markers.push_back( reach_utils::drawArrow( _u[i], _ref_frame, colors[i], 0.20, 0.01, id ) );
+     id++;
+  }
+  
+  pub_debug_markers_->publish(markers);
+}
 
 /**
  * @function getTransform

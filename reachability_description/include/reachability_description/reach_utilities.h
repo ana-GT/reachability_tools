@@ -10,6 +10,7 @@
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <reachability_msgs/msg/chain_info.hpp>
 #include <reachability_msgs/msg/reach_graph.hpp>
+#include <visualization_msgs/msg/marker.hpp>
 
 #include <trac_ik/trac_ik.hpp>
 
@@ -30,6 +31,8 @@ TRAC_IK::SolveType stringToType(const std::string &_str);
 
 namespace reach_utils {
 
+double random(double _min, double _max);
+
 bool getMinMaxSamples(const reachability_msgs::msg::ReachGraph &_rg,
                       int &_min_samples, int &_max_samples);
 
@@ -41,4 +44,11 @@ Eigen::Isometry3d getPlanarTransform(const double &_x, const double &_y, const d
 
 bool isApproxPlanarTransform(const Eigen::Isometry3d &_Tf_start, const Eigen::Isometry3d &_Tf_goal, 
                              double &_tx, double &_ty, double &_yaw, const double &_thresh);
+
+visualization_msgs::msg::Marker drawArrow(const Eigen::Isometry3d &_Tf,
+					  const std::string &_ref_frame,
+					  const Eigen::Vector4d &_color,
+					  const double &_length, const double &_diameter,
+                                          const int &_id );                             
+                             
 }
