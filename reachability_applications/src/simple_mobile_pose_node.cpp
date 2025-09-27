@@ -207,6 +207,18 @@ void SimpleMobilePose::handleSrv(const std::shared_ptr<reachability_msgs::srv::G
      } // for pi
   } // for si
   
+  // DEBUG
+  for(int i = 0; i < js_configs.size(); ++i)
+  {
+    for(int j = 0; j < js_configs[i].size(); ++j)
+    {
+      if(fabs(js_configs[i][j]) > 10.0)
+      {
+        RCLCPP_INFO(logger, "JS CONFIG for index %d - %d is bigger than zero: %f", i, j, js_configs[i][j]);
+      }
+    }
+  }
+  
   // Calculate KMedoids
   se2::KMedoids km;
   km.addPoints(poses_tfs);
@@ -228,8 +240,9 @@ void SimpleMobilePose::handleSrv(const std::shared_ptr<reachability_msgs::srv::G
 
      for(int i = 0; i < u.size(); ++i)
      {     
-        js_init = vectorToJointState(js_configs[ getClosestIndex(u[i], i, poses_tfs, indices) ], ci_);
-        
+        int idx = getClosestIndex(u[i], i, poses_tfs, indices);
+        js_init = vectorToJointState(js_configs[ idx ], ci_);    
+
         msg_base_init.pose = tf2::toMsg(u[i]);
         msg_base_init.header.frame_id = ref_frame;
 
